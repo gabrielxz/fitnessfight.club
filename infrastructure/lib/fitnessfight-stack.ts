@@ -1,0 +1,123 @@
+import * as cdk from 'aws-cdk-lib'
+import * as s3 from 'aws-cdk-lib/aws-s3'
+import * as cloudfront from 'aws-cdk-lib/aws-cloudfront'
+import * as origins from 'aws-cdk-lib/aws-cloudfront-origins'
+import * as s3deploy from 'aws-cdk-lib/aws-s3-deployment'
+import { Construct } from 'constructs'
+import * as path from 'path'
+
+export interface FitnessFightStackProps extends cdk.StackProps {
+  environment: 'dev' | 'prod'
+}
+
+export class FitnessFightStack extends cdk.Stack {
+  public readonly frontendBucket: s3.Bucket
+  public readonly distribution: cloudfront.Distribution
+
+  constructor(scope: Construct, id: string, props: FitnessFightStackProps) {
+    super(scope, id, props)
+
+    const { environment } = props
+    const isProd = environment === 'prod'
+
+    // S3 bucket for frontend hosting
+    this.frontendBucket = new s3.Bucket(this, 'FrontendBucket', {
+      bucketName: `fitnessfight-club-frontend-${environment}`,
+      publicReadAccess: false,
+      blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
+      removalPolicy: isProd ? cdk.RemovalPolicy.RETAIN : cdk.RemovalPolicy.DESTROY,
+      autoDeleteObjects: !isProd,
+      versioned: isProd,
+      encryption: s3.BucketEncryption.S3_MANAGED,
+      lifecycleRules: isProd
+        ? [
+            {
+              id: 'delete-old-versions',
+              noncurrentVersionExpiration: cdk.Duration.days(30),
+              enabled: true,
+            },
+          ]
+        : [],
+    })
+
+    // CloudFront Origin Access Identity
+    const originAccessIdentity = new cloudfront.OriginAccessIdentity(this, 'OAI', {
+      comment: `OAI for ${environment} frontend bucket`,
+    })
+
+    // Grant CloudFront access to the bucket
+    this.frontendBucket.grantRead(originAccessIdentity)
+
+    // CloudFront distribution
+    this.distribution = new cloudfront.Distribution(this, 'Distribution', {
+      defaultBehavior: {
+        origin: origins.S3BucketOrigin.withOriginAccessIdentity(this.frontendBucket, {
+          originAccessIdentity,
+        }),
+        viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+        allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD_OPTIONS,
+        cachedMethods: cloudfront.CachedMethods.CACHE_GET_HEAD_OPTIONS,
+        compress: true,
+        cachePolicy: cloudfront.CachePolicy.CACHING_OPTIMIZED,
+      },
+      defaultRootObject: 'index.html',
+      errorResponses: [
+        {
+          httpStatus: 404,
+          responseHttpStatus: 200,
+          responsePagePath: '/index.html',
+          ttl: cdk.Duration.seconds(0),
+        },
+        {
+          httpStatus: 403,
+          responseHttpStatus: 200,
+          responsePagePath: '/index.html',
+          ttl: cdk.Duration.seconds(0),
+        },
+      ],
+      priceClass: isProd
+        ? cloudfront.PriceClass.PRICE_CLASS_100
+        : cloudfront.PriceClass.PRICE_CLASS_100,
+      enabled: true,
+      httpVersion: cloudfront.HttpVersion.HTTP2_AND_3,
+      minimumProtocolVersion: cloudfront.SecurityPolicyProtocol.TLS_V1_2_2021,
+      comment: `CloudFront distribution for fitnessfight.club ${environment}`,
+    })
+
+    // Deploy frontend files to S3
+    new s3deploy.BucketDeployment(this, 'DeployFrontend', {
+      sources: [s3deploy.Source.asset(path.join(__dirname, '../../frontend/out'))],
+      destinationBucket: this.frontendBucket,
+      distribution: this.distribution,
+      distributionPaths: ['/*'],
+      memoryLimit: 256,
+      prune: true,
+      retainOnDelete: false,
+    })
+
+    // Outputs
+    new cdk.CfnOutput(this, 'FrontendBucketName', {
+      value: this.frontendBucket.bucketName,
+      description: 'Name of the S3 bucket hosting the frontend',
+    })
+
+    new cdk.CfnOutput(this, 'CloudFrontDistributionId', {
+      value: this.distribution.distributionId,
+      description: 'CloudFront distribution ID',
+    })
+
+    new cdk.CfnOutput(this, 'CloudFrontDistributionDomain', {
+      value: this.distribution.distributionDomainName,
+      description: 'CloudFront distribution domain name',
+    })
+
+    new cdk.CfnOutput(this, 'CloudFrontURL', {
+      value: `https://${this.distribution.distributionDomainName}`,
+      description: 'URL for accessing the frontend',
+    })
+
+    // Add stack-level tags (these will be applied to all resources)
+    cdk.Tags.of(this).add('Stack', this.stackName)
+    cdk.Tags.of(this).add('ManagedBy', 'CDK')
+  }
+}

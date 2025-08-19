@@ -1,0 +1,36 @@
+# Dependencies
+node_modules
+**/node_modules
+
+# Production
+build
+dist
+out
+.next
+*.tsbuildinfo
+
+# CDK
+cdk.out
+*.d.ts
+*.js
+!jest.config.js
+!next.config.js
+!postcss.config.js
+!tailwind.config.ts
+infrastructure/**/*.js
+infrastructure/**/*.d.ts
+
+# Cache
+.npm
+.eslintcache
+
+# Misc
+coverage
+*.log
+.DS_Store
+.env*
+!.env.example
+
+# Git
+.git
+.gitignore
