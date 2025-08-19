@@ -5,6 +5,9 @@ import * as origins from 'aws-cdk-lib/aws-cloudfront-origins'
 import * as s3deploy from 'aws-cdk-lib/aws-s3-deployment'
 import { Construct } from 'constructs'
 import * as path from 'path'
+import { AuthStack } from './auth-stack'
+import { DatabaseStack } from './database-stack'
+import { ApiStack } from './api-stack'
 
 export interface FitnessFightStackProps extends cdk.StackProps {
   environment: 'dev' | 'prod'
@@ -119,5 +122,41 @@ export class FitnessFightStack extends cdk.Stack {
     // Add stack-level tags (these will be applied to all resources)
     cdk.Tags.of(this).add('Stack', this.stackName)
     cdk.Tags.of(this).add('ManagedBy', 'CDK')
+
+    // Create Auth stack (Cognito)
+    const authStack = new AuthStack(this, 'Auth', {
+      environment,
+    })
+
+    // Create Database stack (DynamoDB)
+    const databaseStack = new DatabaseStack(this, 'Database', {
+      environment,
+    })
+
+    // Create API stack (Lambda + API Gateway)
+    const apiStack = new ApiStack(this, 'Api', {
+      environment,
+      usersTable: databaseStack.usersTable,
+      activitiesTable: databaseStack.activitiesTable,
+      challengesTable: databaseStack.challengesTable,
+      userPool: authStack.userPool,
+    })
+
+    // Output API URL
+    new cdk.CfnOutput(this, 'ApiEndpoint', {
+      value: apiStack.api.url,
+      description: 'API Gateway endpoint URL',
+    })
+
+    // Output Cognito details for frontend configuration
+    new cdk.CfnOutput(this, 'CognitoUserPoolId', {
+      value: authStack.userPool.userPoolId,
+      description: 'Cognito User Pool ID for frontend config',
+    })
+
+    new cdk.CfnOutput(this, 'CognitoClientId', {
+      value: authStack.userPoolClient.userPoolClientId,
+      description: 'Cognito Client ID for frontend config',
+    })
   }
 }
