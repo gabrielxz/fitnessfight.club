@@ -46,10 +46,16 @@ cdk.out/
 .cdk.staging/
 cdk.context.json
 *.d.ts
+!frontend/jest-dom.d.ts
 *.js
 !jest.config.js
+!jest.setup.js
 !next.config.js
+!postcss.config.js
+!eslint.config.js
 infrastructure/**/*.js
+!infrastructure/eslint.config.js
+!infrastructure/jest.config.js
 infrastructure/**/*.d.ts
 
 # AWS
