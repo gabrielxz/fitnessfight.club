@@ -56,6 +56,7 @@ cdk.context.json
 infrastructure/**/*.js
 !infrastructure/eslint.config.js
 !infrastructure/jest.config.js
+!infrastructure/lambda/**/*.js
 infrastructure/**/*.d.ts
 
 # AWS
