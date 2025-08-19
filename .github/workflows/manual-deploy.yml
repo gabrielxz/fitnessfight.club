@@ -85,9 +85,12 @@ jobs:
       - name: Get CloudFront URL
         id: get-url
         run: |
-          cd infrastructure
           STACK_NAME="fitnessfight-club-${{ inputs.environment }}-Stack"
-          CLOUDFRONT_URL=$(npx cdk output $STACK_NAME CloudFrontURL --no-colors | grep -oP 'https://[^\s]+')
+          CLOUDFRONT_URL=$(aws cloudformation describe-stacks \
+            --stack-name $STACK_NAME \
+            --query "Stacks[0].Outputs[?OutputKey=='CloudFrontURL'].OutputValue" \
+            --output text \
+            --region ${{ env.AWS_REGION }})
           echo "cloudfront_url=$CLOUDFRONT_URL" >> $GITHUB_OUTPUT
 
       - name: Post deployment summary

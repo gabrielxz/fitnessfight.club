@@ -112,8 +112,11 @@ jobs:
       - name: Get CloudFront URL
         id: get-url
         run: |
-          cd infrastructure
-          CLOUDFRONT_URL=$(npx cdk output fitnessfight-club-dev-Stack CloudFrontURL --no-colors | grep -oP 'https://[^\s]+')
+          CLOUDFRONT_URL=$(aws cloudformation describe-stacks \
+            --stack-name fitnessfight-club-dev-Stack \
+            --query "Stacks[0].Outputs[?OutputKey=='CloudFrontURL'].OutputValue" \
+            --output text \
+            --region ${{ env.AWS_REGION }})
           echo "cloudfront_url=$CLOUDFRONT_URL" >> $GITHUB_OUTPUT
           echo "Deployment URL: $CLOUDFRONT_URL"
 
