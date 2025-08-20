@@ -3,11 +3,15 @@ import * as s3 from 'aws-cdk-lib/aws-s3'
 import * as cloudfront from 'aws-cdk-lib/aws-cloudfront'
 import * as origins from 'aws-cdk-lib/aws-cloudfront-origins'
 import * as s3deploy from 'aws-cdk-lib/aws-s3-deployment'
+import * as route53 from 'aws-cdk-lib/aws-route53'
+import * as route53targets from 'aws-cdk-lib/aws-route53-targets'
+import * as acm from 'aws-cdk-lib/aws-certificatemanager'
 import { Construct } from 'constructs'
 import * as path from 'path'
 import { AuthStack } from './auth-stack'
 import { DatabaseStack } from './database-stack'
 import { ApiStack } from './api-stack'
+import { getConfig } from './config'
 
 export interface FitnessFightStackProps extends cdk.StackProps {
   environment: 'dev' | 'prod'
@@ -22,6 +26,7 @@ export class FitnessFightStack extends cdk.Stack {
 
     const { environment } = props
     const isProd = environment === 'prod'
+    const config = getConfig(environment)
 
     // S3 bucket for frontend hosting
     this.frontendBucket = new s3.Bucket(this, 'FrontendBucket', {
@@ -51,8 +56,26 @@ export class FitnessFightStack extends cdk.Stack {
     // Grant CloudFront access to the bucket
     this.frontendBucket.grantRead(originAccessIdentity)
 
+    // Import the hosted zone
+    const hostedZone = route53.HostedZone.fromHostedZoneAttributes(this, 'HostedZone', {
+      hostedZoneId: config.hostedZoneId,
+      zoneName: config.domainName,
+    })
+
+    // Import the certificate from cross-stack reference
+    const certificateArn = cdk.Fn.importValue(`fitnessfight-club-${environment}-certificate-arn`)
+    const certificate = acm.Certificate.fromCertificateArn(this, 'Certificate', certificateArn)
+
+    // Determine domain names
+    const domainNames =
+      environment === 'dev'
+        ? [`dev.${config.domainName}`]
+        : [config.domainName, `www.${config.domainName}`]
+
     // CloudFront distribution
     this.distribution = new cloudfront.Distribution(this, 'Distribution', {
+      domainNames,
+      certificate,
       defaultBehavior: {
         origin: origins.S3BucketOrigin.withOriginAccessIdentity(this.frontendBucket, {
           originAccessIdentity,
@@ -98,6 +121,18 @@ export class FitnessFightStack extends cdk.Stack {
       retainOnDelete: false,
     })
 
+    // Create Route53 A records for the domain(s)
+    domainNames.forEach((domainName, index) => {
+      new route53.ARecord(this, `ARecord${index}`, {
+        zone: hostedZone,
+        recordName: domainName,
+        target: route53.RecordTarget.fromAlias(
+          new route53targets.CloudFrontTarget(this.distribution)
+        ),
+        comment: `A record for ${domainName} pointing to CloudFront distribution`,
+      })
+    })
+
     // Outputs
     new cdk.CfnOutput(this, 'FrontendBucketName', {
       value: this.frontendBucket.bucketName,
@@ -116,7 +151,12 @@ export class FitnessFightStack extends cdk.Stack {
 
     new cdk.CfnOutput(this, 'CloudFrontURL', {
       value: `https://${this.distribution.distributionDomainName}`,
-      description: 'URL for accessing the frontend',
+      description: 'CloudFront URL for accessing the frontend',
+    })
+
+    new cdk.CfnOutput(this, 'CustomDomainURL', {
+      value: `https://${domainNames[0]}`,
+      description: 'Custom domain URL for accessing the frontend',
     })
 
     // Add stack-level tags (these will be applied to all resources)

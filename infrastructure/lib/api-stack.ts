@@ -3,8 +3,12 @@ import * as lambda from 'aws-cdk-lib/aws-lambda'
 import * as apigateway from 'aws-cdk-lib/aws-apigateway'
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb'
 import * as cognito from 'aws-cdk-lib/aws-cognito'
+import * as route53 from 'aws-cdk-lib/aws-route53'
+import * as route53targets from 'aws-cdk-lib/aws-route53-targets'
+import * as acm from 'aws-cdk-lib/aws-certificatemanager'
 import { Construct } from 'constructs'
 import * as path from 'path'
+import { getConfig } from './config'
 
 export interface ApiStackProps {
   environment: 'dev' | 'prod'
@@ -22,6 +26,7 @@ export class ApiStack extends Construct {
     super(scope, id)
 
     const { environment, usersTable, activitiesTable, challengesTable, userPool } = props
+    const config = getConfig(environment)
 
     // Create Lambda function for API
     this.apiFunction = new lambda.Function(this, 'ApiFunction', {
@@ -46,6 +51,28 @@ export class ApiStack extends Construct {
     activitiesTable.grantReadWriteData(this.apiFunction)
     challengesTable.grantReadWriteData(this.apiFunction)
 
+    // Import the hosted zone
+    const hostedZone = route53.HostedZone.fromHostedZoneAttributes(this, 'HostedZone', {
+      hostedZoneId: config.hostedZoneId,
+      zoneName: config.domainName,
+    })
+
+    // Import the certificate from cross-stack reference
+    const certificateArn = cdk.Fn.importValue(`fitnessfight-club-${environment}-certificate-arn`)
+    const certificate = acm.Certificate.fromCertificateArn(this, 'Certificate', certificateArn)
+
+    // API domain name
+    const apiDomainName =
+      environment === 'dev' ? `api.dev.${config.domainName}` : `api.${config.domainName}`
+
+    // Create custom domain for API
+    const customDomain = new apigateway.DomainName(this, 'ApiDomain', {
+      domainName: apiDomainName,
+      certificate,
+      endpointType: apigateway.EndpointType.EDGE,
+      securityPolicy: apigateway.SecurityPolicy.TLS_1_2,
+    })
+
     // Create API Gateway
     this.api = new apigateway.RestApi(this, 'Api', {
       restApiName: `fitnessfight-club-api-${environment}`,
@@ -63,7 +90,7 @@ export class ApiStack extends Construct {
         allowOrigins:
           environment === 'prod'
             ? ['https://fitnessfight.club', 'https://www.fitnessfight.club']
-            : ['https://d3ry0nlojppxzx.cloudfront.net', 'http://localhost:3000'],
+            : ['https://dev.fitnessfight.club', 'http://localhost:3000'],
         allowMethods: apigateway.Cors.ALL_METHODS,
         allowHeaders: ['Content-Type', 'Authorization'],
       },
@@ -123,10 +150,30 @@ export class ApiStack extends Construct {
     const health = v1.addResource('health')
     health.addMethod('GET', integration)
 
+    // Map custom domain to API
+    new apigateway.BasePathMapping(this, 'ApiDomainMapping', {
+      domainName: customDomain,
+      restApi: this.api,
+      stage: this.api.deploymentStage,
+    })
+
+    // Create Route53 A record for API domain
+    new route53.ARecord(this, 'ApiARecord', {
+      zone: hostedZone,
+      recordName: apiDomainName,
+      target: route53.RecordTarget.fromAlias(new route53targets.ApiGatewayDomain(customDomain)),
+      comment: `A record for ${apiDomainName} pointing to API Gateway`,
+    })
+
     // Outputs
     new cdk.CfnOutput(this, 'ApiUrl', {
       value: this.api.url,
       description: 'API Gateway URL',
+    })
+
+    new cdk.CfnOutput(this, 'ApiCustomDomainUrl', {
+      value: `https://${apiDomainName}`,
+      description: 'API custom domain URL',
     })
 
     new cdk.CfnOutput(this, 'ApiFunctionName', {
