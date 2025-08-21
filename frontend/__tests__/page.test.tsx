@@ -14,15 +14,10 @@ describe('Home Page', () => {
     expect(tagline).toBeInTheDocument()
   })
 
-  it('renders Get Started button', () => {
+  it('renders the main image', () => {
     render(<Home />)
-    const button = screen.getByRole('button', { name: /get started/i })
-    expect(button).toBeInTheDocument()
-  })
-
-  it('renders Learn More button', () => {
-    render(<Home />)
-    const button = screen.getByRole('button', { name: /learn more/i })
-    expect(button).toBeInTheDocument()
+    const image = screen.getByAltText('Fitness Fight Club')
+    expect(image).toBeInTheDocument()
+    expect(image).toHaveAttribute('src', expect.stringContaining('ffcww2.png'))
   })
 })
