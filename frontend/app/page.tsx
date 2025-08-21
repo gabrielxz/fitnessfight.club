@@ -1,4 +1,5 @@
 import Image from 'next/image'
+import { StravaConnectButton } from '@/components/strava-connect-button'
 
 export default function Home() {
   return (
@@ -17,6 +18,9 @@ export default function Home() {
             className="rounded-lg shadow-lg"
             priority
           />
+        </div>
+        <div className="mt-12 flex items-center justify-center">
+          <StravaConnectButton />
         </div>
       </div>
     </main>

@@ -1,0 +1,9 @@
+{
+  "name": "fitnessfight-club-api",
+  "version": "1.0.0",
+  "description": "API Lambda function for Fitness Fight Club",
+  "main": "index.js",
+  "dependencies": {
+    "@aws-sdk/client-secrets-manager": "^3.0.0"
+  }
+}

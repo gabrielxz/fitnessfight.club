@@ -6,6 +6,7 @@ import * as cognito from 'aws-cdk-lib/aws-cognito'
 import * as route53 from 'aws-cdk-lib/aws-route53'
 import * as route53targets from 'aws-cdk-lib/aws-route53-targets'
 import * as acm from 'aws-cdk-lib/aws-certificatemanager'
+import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager'
 import { Construct } from 'constructs'
 import * as path from 'path'
 import { getConfig } from './config'
@@ -28,6 +29,28 @@ export class ApiStack extends Construct {
     const { environment, usersTable, activitiesTable, challengesTable, userPool } = props
     const config = getConfig(environment)
 
+    // Determine frontend and API URLs based on environment
+    const frontendUrl =
+      environment === 'dev' ? 'https://dev.fitnessfight.club' : 'https://fitnessfight.club'
+
+    const apiUrl =
+      environment === 'dev'
+        ? 'https://api.dev.fitnessfight.club/api/v1'
+        : 'https://api.fitnessfight.club/api/v1'
+
+    // Create Secrets Manager secrets for Strava OAuth
+    const stravaClientIdSecret = new secretsmanager.Secret(this, 'StravaClientId', {
+      secretName: `fitnessfight-club-strava-client-id-${environment}`,
+      description: `Strava OAuth Client ID for ${environment} environment`,
+      secretStringValue: cdk.SecretValue.unsafePlainText('PLACEHOLDER_CLIENT_ID'),
+    })
+
+    const stravaClientSecretSecret = new secretsmanager.Secret(this, 'StravaClientSecret', {
+      secretName: `fitnessfight-club-strava-client-secret-${environment}`,
+      description: `Strava OAuth Client Secret for ${environment} environment`,
+      secretStringValue: cdk.SecretValue.unsafePlainText('PLACEHOLDER_CLIENT_SECRET'),
+    })
+
     // Create Lambda function for API
     this.apiFunction = new lambda.Function(this, 'ApiFunction', {
       functionName: `fitnessfight-club-api-${environment}`,
@@ -41,6 +64,10 @@ export class ApiStack extends Construct {
         CHALLENGES_TABLE: challengesTable.tableName,
         USER_POOL_ID: userPool.userPoolId,
         REGION: cdk.Stack.of(this).region,
+        FRONTEND_URL: frontendUrl,
+        API_URL: apiUrl,
+        STRAVA_CLIENT_ID_SECRET_NAME: stravaClientIdSecret.secretName,
+        STRAVA_CLIENT_SECRET_SECRET_NAME: stravaClientSecretSecret.secretName,
       },
       timeout: cdk.Duration.seconds(30),
       memorySize: 256,
@@ -50,6 +77,10 @@ export class ApiStack extends Construct {
     usersTable.grantReadWriteData(this.apiFunction)
     activitiesTable.grantReadWriteData(this.apiFunction)
     challengesTable.grantReadWriteData(this.apiFunction)
+
+    // Grant Lambda permissions to read Secrets Manager secrets
+    stravaClientIdSecret.grantRead(this.apiFunction)
+    stravaClientSecretSecret.grantRead(this.apiFunction)
 
     // Import the hosted zone
     const hostedZone = route53.HostedZone.fromHostedZoneAttributes(this, 'HostedZone', {
@@ -150,6 +181,13 @@ export class ApiStack extends Construct {
     const health = v1.addResource('health')
     health.addMethod('GET', integration)
 
+    // Strava OAuth endpoints
+    const auth = v1.addResource('auth')
+    const stravaAuth = auth.addResource('strava')
+    stravaAuth.addMethod('GET', integration) // Initiate OAuth flow
+    const stravaCallback = stravaAuth.addResource('callback')
+    stravaCallback.addMethod('GET', integration) // Handle OAuth callback
+
     // Map custom domain to API
     new apigateway.BasePathMapping(this, 'ApiDomainMapping', {
       domainName: customDomain,
@@ -179,6 +217,16 @@ export class ApiStack extends Construct {
     new cdk.CfnOutput(this, 'ApiFunctionName', {
       value: this.apiFunction.functionName,
       description: 'API Lambda function name',
+    })
+
+    new cdk.CfnOutput(this, 'StravaClientIdSecretArn', {
+      value: stravaClientIdSecret.secretArn,
+      description: 'ARN of the Strava Client ID secret',
+    })
+
+    new cdk.CfnOutput(this, 'StravaClientSecretSecretArn', {
+      value: stravaClientSecretSecret.secretArn,
+      description: 'ARN of the Strava Client Secret secret',
     })
   }
 }
