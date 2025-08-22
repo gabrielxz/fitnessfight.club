@@ -289,7 +289,8 @@ export class ApiStack extends Construct {
 
     new cdk.CfnOutput(this, 'StravaWebhookSubscriptionId', {
       value: webhookSubscription.getAttString('SubscriptionId'),
-      description: 'Strava webhook subscription ID',
+      description:
+        'Strava webhook subscription ID (may be placeholder if credentials not configured)',
     })
   }
 }
