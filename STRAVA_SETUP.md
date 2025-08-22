@@ -75,15 +75,30 @@ Using AWS Secrets Manager provides several advantages:
 
 ## Configure Strava Application
 
-In your Strava application settings (https://www.strava.com/settings/api), add these authorization callback domains:
+In your Strava application settings (https://www.strava.com/settings/api), you need to configure the **Authorization Callback Domain**.
+
+**IMPORTANT**: Strava only requires the domain, NOT the full path. Enter only the domain part:
 
 ### For Development:
 
 - Authorization Callback Domain: `api.dev.fitnessfight.club`
+  - The actual callback URL will be: `https://api.dev.fitnessfight.club/dev/api/v1/auth/strava/callback`
+  - But you only enter: `api.dev.fitnessfight.club`
+  - Note: API Gateway adds the stage name (`/dev`) to the path
 
 ### For Production:
 
 - Authorization Callback Domain: `api.fitnessfight.club`
+  - The actual callback URL will be: `https://api.fitnessfight.club/prod/api/v1/auth/strava/callback`
+  - But you only enter: `api.fitnessfight.club`
+  - Note: API Gateway adds the stage name (`/prod`) to the path
+
+### Common Issues:
+
+- Do NOT include `https://` in the domain
+- Do NOT include the path `/api/v1/auth/strava/callback`
+- Do NOT include a trailing slash
+- Make sure the domain matches exactly (including subdomain)
 
 ## Testing the Flow
 

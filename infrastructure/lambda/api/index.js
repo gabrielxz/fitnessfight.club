@@ -86,7 +86,12 @@ exports.handler = async (event) => {
   if (path === '/api/v1/auth/strava' && httpMethod === 'GET') {
     try {
       const { clientId } = await getStravaCredentials()
-      const redirectUri = `${process.env.API_URL}/auth/strava/callback`
+      // Build the correct redirect URI with stage name
+      // API Gateway adds the stage name to the path
+      const redirectUri = `${process.env.API_BASE_URL}/${process.env.API_STAGE}/api/v1/auth/strava/callback`
+      
+      // Log for debugging
+      console.log('OAuth initiation - Redirect URI:', redirectUri)
       
       if (!clientId || clientId === 'PLACEHOLDER_CLIENT_ID') {
         return {
@@ -112,7 +117,16 @@ exports.handler = async (event) => {
       return {
         statusCode: 200,
         headers: corsHeaders,
-        body: JSON.stringify({ authorizationUrl, state }),
+        body: JSON.stringify({ 
+          authorizationUrl, 
+          state,
+          debug: {
+            redirectUri,
+            apiUrl: process.env.API_URL,
+            apiBaseUrl: process.env.API_BASE_URL,
+            stage: process.env.API_STAGE
+          }
+        }),
       }
     } catch (error) {
       console.error('Error in Strava OAuth initiation:', error)

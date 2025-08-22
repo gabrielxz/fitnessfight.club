@@ -38,6 +38,10 @@ export class ApiStack extends Construct {
         ? 'https://api.dev.fitnessfight.club/api/v1'
         : 'https://api.fitnessfight.club/api/v1'
 
+    // Base API domain for OAuth callbacks (includes stage name)
+    const apiBaseUrl =
+      environment === 'dev' ? 'https://api.dev.fitnessfight.club' : 'https://api.fitnessfight.club'
+
     // Create Secrets Manager secrets for Strava OAuth
     const stravaClientIdSecret = new secretsmanager.Secret(this, 'StravaClientId', {
       secretName: `fitnessfight-club-strava-client-id-${environment}`,
@@ -66,6 +70,8 @@ export class ApiStack extends Construct {
         REGION: cdk.Stack.of(this).region,
         FRONTEND_URL: frontendUrl,
         API_URL: apiUrl,
+        API_BASE_URL: apiBaseUrl,
+        API_STAGE: environment,
         STRAVA_CLIENT_ID_SECRET_NAME: stravaClientIdSecret.secretName,
         STRAVA_CLIENT_SECRET_SECRET_NAME: stravaClientSecretSecret.secretName,
       },

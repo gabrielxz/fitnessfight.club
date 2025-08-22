@@ -23,6 +23,11 @@ export function StravaConnectButton() {
 
       const data = await response.json()
 
+      // Debug logging
+      if (data.debug) {
+        console.error('OAuth Debug Info:', data.debug)
+      }
+
       // Redirect to Strava's OAuth page
       if (data.authorizationUrl) {
         window.location.href = data.authorizationUrl
