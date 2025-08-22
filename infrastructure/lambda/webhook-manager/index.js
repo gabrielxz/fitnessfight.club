@@ -44,7 +44,7 @@ exports.handler = async (event, context) => {
       console.error('Failed to retrieve Strava credentials:', secretError)
       // Return with placeholder to allow deployment to continue
       return {
-        physicalResourceId,
+        PhysicalResourceId: physicalResourceId,
         SubscriptionId: 'placeholder-no-credentials',
         CallbackUrl: CallbackUrl || '',
         Message: 'Webhook subscription skipped - Strava credentials not configured'
@@ -57,7 +57,7 @@ exports.handler = async (event, context) => {
         clientSecret === 'PLACEHOLDER_CLIENT_SECRET') {
       console.log('Strava credentials are placeholders, skipping webhook subscription')
       return {
-        physicalResourceId,
+        PhysicalResourceId: physicalResourceId,
         SubscriptionId: 'placeholder-pending-config',
         CallbackUrl: CallbackUrl || '',
         Message: 'Webhook subscription pending - awaiting Strava credential configuration'
@@ -73,7 +73,7 @@ exports.handler = async (event, context) => {
       }
       
       return {
-        physicalResourceId,
+        PhysicalResourceId: physicalResourceId,
         SubscriptionId: 'deleted',
         Message: 'Webhook subscription deleted'
       }
@@ -93,7 +93,7 @@ exports.handler = async (event, context) => {
       console.error('Failed to create/update webhook subscription:', subscriptionError)
       // Return with error info to allow deployment to continue
       return {
-        physicalResourceId,
+        PhysicalResourceId: physicalResourceId,
         SubscriptionId: 'error-subscription-failed',
         CallbackUrl: CallbackUrl || '',
         Message: `Webhook subscription failed: ${subscriptionError.message}`
@@ -102,7 +102,7 @@ exports.handler = async (event, context) => {
     
     // Success - return the subscription ID
     return {
-      physicalResourceId: `strava-webhook-${Environment}-${subscriptionId}`,
+      PhysicalResourceId: `strava-webhook-${Environment}-${subscriptionId}`,
       SubscriptionId: String(subscriptionId),
       CallbackUrl: CallbackUrl || '',
       Message: `Webhook subscription ${RequestType.toLowerCase()}d successfully`
@@ -112,7 +112,7 @@ exports.handler = async (event, context) => {
     console.error('Error handling custom resource:', error)
     // Return error state but don't throw (allows deployment to continue)
     return {
-      physicalResourceId,
+      PhysicalResourceId: physicalResourceId,
       SubscriptionId: 'error-unexpected',
       Message: `Unexpected error: ${error.message}`
     }
