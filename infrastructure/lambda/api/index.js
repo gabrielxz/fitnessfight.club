@@ -1,8 +1,12 @@
 // Basic API Lambda handler
 const { SecretsManagerClient, GetSecretValueCommand } = require('@aws-sdk/client-secrets-manager')
+const { DynamoDBClient } = require('@aws-sdk/client-dynamodb')
+const { DynamoDBDocumentClient, GetCommand, PutCommand, UpdateCommand } = require('@aws-sdk/lib-dynamodb')
 
-// Initialize Secrets Manager client
+// Initialize AWS clients
 const secretsClient = new SecretsManagerClient({ region: process.env.REGION || 'us-east-1' })
+const dynamoClient = new DynamoDBClient({ region: process.env.REGION || 'us-east-1' })
+const docClient = DynamoDBDocumentClient.from(dynamoClient)
 
 // Cache for secrets to avoid repeated fetches
 let secretsCache = {
@@ -54,6 +58,136 @@ async function getStravaCredentials() {
   } catch (error) {
     console.error('Failed to fetch Strava credentials from Secrets Manager:', error)
     throw new Error('Unable to retrieve Strava credentials')
+  }
+}
+
+// Helper function to save user data to DynamoDB
+async function saveUserToDynamoDB(userData) {
+  const now = new Date().toISOString()
+  
+  const item = {
+    userId: String(userData.athlete.id), // Use athleteId as userId (primary key)
+    stravaId: String(userData.athlete.id), // Also store as stravaId for GSI
+    athleteId: userData.athlete.id, // Keep numeric athleteId for reference
+    firstName: userData.athlete.firstname || '',
+    lastName: userData.athlete.lastname || '',
+    username: userData.athlete.username || '',
+    profile: userData.athlete.profile || '',
+    profileMedium: userData.athlete.profile_medium || '',
+    city: userData.athlete.city || '',
+    state: userData.athlete.state || '',
+    country: userData.athlete.country || '',
+    sex: userData.athlete.sex || '',
+    premium: userData.athlete.premium || false,
+    summit: userData.athlete.summit || false,
+    accessToken: userData.access_token,
+    refreshToken: userData.refresh_token,
+    expiresAt: userData.expires_at,
+    createdAt: now,
+    updatedAt: now,
+  }
+
+  try {
+    await docClient.send(new PutCommand({
+      TableName: process.env.USERS_TABLE,
+      Item: item,
+    }))
+    console.log('User saved to DynamoDB:', { userId: item.userId, username: item.username })
+    return item
+  } catch (error) {
+    console.error('Error saving user to DynamoDB:', error)
+    throw error
+  }
+}
+
+// Helper function to refresh Strava token
+async function refreshStravaToken(userId) {
+  try {
+    // Get user from DynamoDB
+    const getUserResult = await docClient.send(new GetCommand({
+      TableName: process.env.USERS_TABLE,
+      Key: { userId: String(userId) },
+    }))
+
+    if (!getUserResult.Item) {
+      throw new Error(`User not found: ${userId}`)
+    }
+
+    const user = getUserResult.Item
+    const { clientId, clientSecret } = await getStravaCredentials()
+
+    // Call Strava refresh endpoint
+    const refreshResponse = await fetch('https://www.strava.com/oauth/token', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        client_id: clientId,
+        client_secret: clientSecret,
+        grant_type: 'refresh_token',
+        refresh_token: user.refreshToken,
+      }),
+    })
+
+    if (!refreshResponse.ok) {
+      throw new Error(`Token refresh failed: ${refreshResponse.status}`)
+    }
+
+    const tokenData = await refreshResponse.json()
+
+    // Update user in DynamoDB with new tokens
+    const updateResult = await docClient.send(new UpdateCommand({
+      TableName: process.env.USERS_TABLE,
+      Key: { userId: String(userId) },
+      UpdateExpression: 'SET accessToken = :accessToken, refreshToken = :refreshToken, expiresAt = :expiresAt, updatedAt = :updatedAt',
+      ExpressionAttributeValues: {
+        ':accessToken': tokenData.access_token,
+        ':refreshToken': tokenData.refresh_token,
+        ':expiresAt': tokenData.expires_at,
+        ':updatedAt': new Date().toISOString(),
+      },
+      ReturnValues: 'ALL_NEW',
+    }))
+
+    console.log('Token refreshed for user:', userId)
+    return updateResult.Attributes
+  } catch (error) {
+    console.error('Error refreshing token:', error)
+    throw error
+  }
+}
+
+// Helper function to get valid Strava token (auto-refreshes if expired)
+// Pass in the Strava athlete ID (which we use as userId)
+async function getValidStravaToken(athleteId) {
+  try {
+    const userId = String(athleteId)
+    
+    // Get user from DynamoDB
+    const getUserResult = await docClient.send(new GetCommand({
+      TableName: process.env.USERS_TABLE,
+      Key: { userId },
+    }))
+
+    if (!getUserResult.Item) {
+      throw new Error(`User not found: ${userId}`)
+    }
+
+    const user = getUserResult.Item
+    const now = Math.floor(Date.now() / 1000)
+    
+    // Check if token is expired or about to expire (5 minutes buffer)
+    if (user.expiresAt <= now + 300) {
+      console.log('Token expired or expiring soon, refreshing...')
+      const updatedUser = await refreshStravaToken(userId)
+      return updatedUser.accessToken
+    }
+
+    return user.accessToken
+  } catch (error) {
+    console.error('Error getting valid token:', error)
+    throw error
   }
 }
 
@@ -200,7 +334,7 @@ exports.handler = async (event) => {
 
       const tokenData = await tokenResponse.json()
 
-      // Log user details to console as requested
+      // Log user details to console
       console.log('New Strava user connected:', {
         athleteId: tokenData.athlete?.id,
         firstName: tokenData.athlete?.firstname,
@@ -216,8 +350,14 @@ exports.handler = async (event) => {
         timestamp: new Date().toISOString(),
       })
 
-      // TODO: Save user data to DynamoDB users table
-      // For now, we just log the details as requested
+      // Save user data to DynamoDB
+      try {
+        await saveUserToDynamoDB(tokenData)
+        console.log('User successfully saved to database')
+      } catch (dbError) {
+        console.error('Failed to save user to database:', dbError)
+        // Continue anyway - user is authenticated, we just couldn't save to DB
+      }
 
       // Redirect to homepage with success message
       return {

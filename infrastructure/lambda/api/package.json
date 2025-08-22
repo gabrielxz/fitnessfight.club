@@ -4,6 +4,8 @@
   "description": "API Lambda function for Fitness Fight Club",
   "main": "index.js",
   "dependencies": {
-    "@aws-sdk/client-secrets-manager": "^3.0.0"
+    "@aws-sdk/client-secrets-manager": "^3.0.0",
+    "@aws-sdk/client-dynamodb": "^3.0.0",
+    "@aws-sdk/lib-dynamodb": "^3.0.0"
   }
 }
