@@ -86,9 +86,9 @@ exports.handler = async (event) => {
   if (path === '/api/v1/auth/strava' && httpMethod === 'GET') {
     try {
       const { clientId } = await getStravaCredentials()
-      // Build the correct redirect URI with stage name
-      // API Gateway adds the stage name to the path
-      const redirectUri = `${process.env.API_BASE_URL}/${process.env.API_STAGE}/api/v1/auth/strava/callback`
+      // Build the correct redirect URI
+      // Custom domains don't include the stage in the path
+      const redirectUri = `${process.env.API_BASE_URL}/api/v1/auth/strava/callback`
       
       // Log for debugging
       console.log('OAuth initiation - Redirect URI:', redirectUri)

@@ -82,16 +82,16 @@ In your Strava application settings (https://www.strava.com/settings/api), you n
 ### For Development:
 
 - Authorization Callback Domain: `api.dev.fitnessfight.club`
-  - The actual callback URL will be: `https://api.dev.fitnessfight.club/dev/api/v1/auth/strava/callback`
+  - The actual callback URL will be: `https://api.dev.fitnessfight.club/api/v1/auth/strava/callback`
   - But you only enter: `api.dev.fitnessfight.club`
-  - Note: API Gateway adds the stage name (`/dev`) to the path
+  - Note: Custom domains map directly to the stage, no stage prefix in path
 
 ### For Production:
 
 - Authorization Callback Domain: `api.fitnessfight.club`
-  - The actual callback URL will be: `https://api.fitnessfight.club/prod/api/v1/auth/strava/callback`
+  - The actual callback URL will be: `https://api.fitnessfight.club/api/v1/auth/strava/callback`
   - But you only enter: `api.fitnessfight.club`
-  - Note: API Gateway adds the stage name (`/prod`) to the path
+  - Note: Custom domains map directly to the stage, no stage prefix in path
 
 ### Common Issues:
 
