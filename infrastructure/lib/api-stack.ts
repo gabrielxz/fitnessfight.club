@@ -22,6 +22,7 @@ export interface ApiStackProps {
 export class ApiStack extends Construct {
   public readonly api: apigateway.RestApi
   public readonly apiFunction: lambda.Function
+  public readonly webhookVerifyToken: string
 
   constructor(scope: Construct, id: string, props: ApiStackProps) {
     super(scope, id)
@@ -56,7 +57,7 @@ export class ApiStack extends Construct {
     })
 
     // Generate a secure webhook verification token
-    const webhookVerifyToken = `fitnessfight-webhook-${environment}-${Math.random().toString(36).substring(2, 15)}`
+    this.webhookVerifyToken = `fitnessfight-webhook-${environment}-${Math.random().toString(36).substring(2, 15)}`
 
     // Create Lambda function for API
     this.apiFunction = new lambda.Function(this, 'ApiFunction', {
@@ -77,7 +78,7 @@ export class ApiStack extends Construct {
         API_STAGE: environment,
         STRAVA_CLIENT_ID_SECRET_NAME: stravaClientIdSecret.secretName,
         STRAVA_CLIENT_SECRET_SECRET_NAME: stravaClientSecretSecret.secretName,
-        STRAVA_WEBHOOK_VERIFY_TOKEN: webhookVerifyToken,
+        STRAVA_WEBHOOK_VERIFY_TOKEN: this.webhookVerifyToken,
       },
       timeout: cdk.Duration.seconds(30),
       memorySize: 256,
@@ -240,7 +241,7 @@ export class ApiStack extends Construct {
     })
 
     new cdk.CfnOutput(this, 'StravaWebhookVerifyToken', {
-      value: webhookVerifyToken,
+      value: this.webhookVerifyToken,
       description: 'Webhook verification token for Strava subscriptions',
     })
   }

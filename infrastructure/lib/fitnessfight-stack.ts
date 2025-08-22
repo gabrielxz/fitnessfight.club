@@ -198,5 +198,11 @@ export class FitnessFightStack extends cdk.Stack {
       value: authStack.userPoolClient.userPoolClientId,
       description: 'Cognito Client ID for frontend config',
     })
+
+    // Output webhook verify token for webhook subscription script
+    new cdk.CfnOutput(this, 'StravaWebhookVerifyToken', {
+      value: apiStack.webhookVerifyToken,
+      description: 'Webhook verification token for Strava subscriptions',
+    })
   }
 }
