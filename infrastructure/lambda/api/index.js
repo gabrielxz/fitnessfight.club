@@ -377,17 +377,125 @@ exports.handler = async (event) => {
     }
   }
 
-  // Handle Strava webhook verification
+  // Handle Strava webhook verification (GET request)
   if (path === '/api/v1/webhook/strava' && httpMethod === 'GET') {
     const hubChallenge = queryStringParameters?.['hub.challenge']
     const hubVerifyToken = queryStringParameters?.['hub.verify_token']
+    const hubMode = queryStringParameters?.['hub.mode']
 
-    // TODO: Verify token matches your Strava app's verify token
-    if (hubChallenge) {
+    console.log('Webhook verification request:', {
+      hubMode,
+      hubVerifyToken,
+      hubChallenge: hubChallenge ? 'present' : 'missing',
+      expectedToken: process.env.STRAVA_WEBHOOK_VERIFY_TOKEN ? 'configured' : 'not configured'
+    })
+
+    // Verify the token matches our configured verify token
+    const expectedToken = process.env.STRAVA_WEBHOOK_VERIFY_TOKEN || 'fitnessfight-webhook-token'
+    
+    if (hubMode === 'subscribe' && hubVerifyToken === expectedToken && hubChallenge) {
+      console.log('Webhook verification successful')
       return {
         statusCode: 200,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 'hub.challenge': hubChallenge }),
+      }
+    }
+
+    console.error('Webhook verification failed:', {
+      modeMatch: hubMode === 'subscribe',
+      tokenMatch: hubVerifyToken === expectedToken,
+      challengePresent: !!hubChallenge
+    })
+    
+    return {
+      statusCode: 403,
+      headers: corsHeaders,
+      body: JSON.stringify({ error: 'Invalid verification token' }),
+    }
+  }
+
+  // Handle Strava webhook events (POST request)
+  if (path === '/api/v1/webhook/strava' && httpMethod === 'POST') {
+    try {
+      const webhookEvent = body ? JSON.parse(body) : null
+      
+      console.log('Strava webhook event received:', JSON.stringify(webhookEvent, null, 2))
+      
+      if (!webhookEvent) {
+        return {
+          statusCode: 400,
+          headers: corsHeaders,
+          body: JSON.stringify({ error: 'No event data provided' }),
+        }
+      }
+
+      const { object_type, object_id, aspect_type, owner_id, subscription_id, event_time, updates } = webhookEvent
+
+      // Log event details
+      console.log('Webhook event details:', {
+        objectType: object_type,
+        objectId: object_id,
+        aspectType: aspect_type,
+        ownerId: owner_id,
+        subscriptionId: subscription_id,
+        eventTime: event_time,
+        updates: updates,
+        timestamp: new Date().toISOString()
+      })
+
+      // Handle different event types
+      switch (aspect_type) {
+        case 'create':
+          console.log(`New ${object_type} created:`, {
+            id: object_id,
+            athleteId: owner_id,
+            eventTime: new Date(event_time * 1000).toISOString()
+          })
+          // TODO: Fetch full activity details using the athlete's access token
+          // TODO: Store activity in DynamoDB activities table
+          break
+          
+        case 'update':
+          console.log(`${object_type} updated:`, {
+            id: object_id,
+            athleteId: owner_id,
+            updates: updates,
+            eventTime: new Date(event_time * 1000).toISOString()
+          })
+          // TODO: Fetch updated activity details
+          // TODO: Update activity in DynamoDB
+          break
+          
+        case 'delete':
+          console.log(`${object_type} deleted:`, {
+            id: object_id,
+            athleteId: owner_id,
+            eventTime: new Date(event_time * 1000).toISOString()
+          })
+          // TODO: Mark activity as deleted in DynamoDB
+          break
+          
+        default:
+          console.log(`Unknown aspect type: ${aspect_type}`)
+      }
+
+      // Return success response to Strava
+      return {
+        statusCode: 200,
+        headers: corsHeaders,
+        body: JSON.stringify({ 
+          success: true,
+          message: 'Webhook event processed',
+          eventId: object_id
+        }),
+      }
+    } catch (error) {
+      console.error('Error processing webhook event:', error)
+      return {
+        statusCode: 500,
+        headers: corsHeaders,
+        body: JSON.stringify({ error: 'Failed to process webhook event' }),
       }
     }
   }

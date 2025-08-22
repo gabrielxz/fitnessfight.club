@@ -1,0 +1,9 @@
+{
+  "name": "webhook-manager",
+  "version": "1.0.0",
+  "description": "Custom Resource Lambda for managing Strava webhook subscriptions",
+  "main": "index.js",
+  "dependencies": {
+    "@aws-sdk/client-secrets-manager": "^3.632.0"
+  }
+}
