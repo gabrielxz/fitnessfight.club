@@ -184,18 +184,21 @@ fitnessfight.club/
   - Prod: `https://api.fitnessfight.club/api/v1/webhook/strava`
 - **Verify Token**: Auto-generated during CDK deployment, stored in Lambda environment
 - **Events Received**: `activity.create`, `activity.update`, `activity.delete`
-- **Automatic Setup**: Webhook subscription is automatically managed via AWS Custom Resource
-  - Created/updated during stack deployment
-  - Removed during stack deletion
-  - No manual configuration required
+- **Automatic Setup**: Webhook subscription is managed via GitHub Actions
+  - Created automatically after successful CDK deployment
+  - Idempotent script checks for existing subscriptions
+  - Only creates new subscription if needed
+  - Script location: `/scripts/strava-webhook-subscribe.js`
+- **Manual Webhook Setup** (if needed):
+  ```bash
+  # Run subscription script manually
+  node scripts/strava-webhook-subscribe.js dev   # For dev environment
+  node scripts/strava-webhook-subscribe.js prod  # For prod environment
+  ```
 - **View Webhook Logs**:
-
   ```bash
   # View incoming webhook events
   aws logs tail /aws/lambda/fitnessfight-club-api-dev --follow
-
-  # View webhook subscription management logs
-  aws logs tail /aws/lambda/fitnessfight-club-webhook-manager-dev --follow
   ```
 
 ## Testing Strategy
@@ -231,7 +234,7 @@ fitnessfight.club/
 - ~~Strava OAuth integration~~ - Complete with token storage and auto-refresh
 - ~~Domain fitnessfight.club configured in Route 53~~ - Both dev and prod domains working
 - ~~Environment variables stored in AWS Secrets Manager~~ - Strava credentials secured
-- ~~Webhook support for real-time Strava activity updates~~ - Automatically managed via CDK Custom Resource
+- ~~Webhook support for real-time Strava activity updates~~ - Automatically managed via GitHub Actions
 
 ### To Do
 

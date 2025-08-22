@@ -109,6 +109,11 @@ jobs:
           cd infrastructure
           npm run deploy:dev
 
+      - name: Setup Strava webhook subscription
+        run: |
+          echo "Setting up Strava webhook subscription..."
+          node scripts/strava-webhook-subscribe.js dev
+
       - name: Get CloudFront URL
         id: get-url
         run: |

@@ -7,8 +7,6 @@ import * as route53 from 'aws-cdk-lib/aws-route53'
 import * as route53targets from 'aws-cdk-lib/aws-route53-targets'
 import * as acm from 'aws-cdk-lib/aws-certificatemanager'
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager'
-import * as customResources from 'aws-cdk-lib/custom-resources'
-import * as logs from 'aws-cdk-lib/aws-logs'
 import { Construct } from 'constructs'
 import * as path from 'path'
 import { getConfig } from './config'
@@ -215,47 +213,6 @@ export class ApiStack extends Construct {
       comment: `A record for ${apiDomainName} pointing to API Gateway`,
     })
 
-    // Create Lambda function for webhook subscription management (Custom Resource)
-    const webhookManagerFunction = new lambda.Function(this, 'WebhookManagerFunction', {
-      functionName: `fitnessfight-club-webhook-manager-${environment}`,
-      runtime: lambda.Runtime.NODEJS_20_X,
-      handler: 'index.handler',
-      code: lambda.Code.fromAsset(path.join(__dirname, '../lambda/webhook-manager')),
-      environment: {
-        // AWS_REGION is automatically set by Lambda runtime
-      },
-      timeout: cdk.Duration.seconds(60), // Longer timeout for API calls
-      memorySize: 256,
-      logRetention: logs.RetentionDays.ONE_WEEK,
-    })
-
-    // Grant the webhook manager function permission to read secrets
-    stravaClientIdSecret.grantRead(webhookManagerFunction)
-    stravaClientSecretSecret.grantRead(webhookManagerFunction)
-
-    // Create Custom Resource Provider
-    const webhookProvider = new customResources.Provider(this, 'WebhookProvider', {
-      onEventHandler: webhookManagerFunction,
-      logRetention: logs.RetentionDays.ONE_WEEK,
-    })
-
-    // Create Custom Resource to manage webhook subscription
-    const webhookSubscription = new cdk.CustomResource(this, 'StravaWebhookSubscription', {
-      serviceToken: webhookProvider.serviceToken,
-      properties: {
-        ClientIdSecretName: stravaClientIdSecret.secretName,
-        ClientSecretSecretName: stravaClientSecretSecret.secretName,
-        CallbackUrl: `https://${apiDomainName}/api/v1/webhook/strava`,
-        VerifyToken: webhookVerifyToken,
-        Environment: environment,
-        // Add a timestamp to force updates when token changes
-        UpdateTrigger: new Date().toISOString(),
-      },
-    })
-
-    // Ensure webhook subscription happens after API deployment
-    webhookSubscription.node.addDependency(this.api)
-
     // Outputs
     new cdk.CfnOutput(this, 'ApiUrl', {
       value: this.api.url,
@@ -285,12 +242,6 @@ export class ApiStack extends Construct {
     new cdk.CfnOutput(this, 'StravaWebhookVerifyToken', {
       value: webhookVerifyToken,
       description: 'Webhook verification token for Strava subscriptions',
-    })
-
-    new cdk.CfnOutput(this, 'StravaWebhookSubscriptionId', {
-      value: webhookSubscription.getAttString('SubscriptionId'),
-      description:
-        'Strava webhook subscription ID (may be placeholder if credentials not configured)',
     })
   }
 }
