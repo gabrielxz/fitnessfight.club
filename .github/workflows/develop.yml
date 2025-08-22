@@ -112,6 +112,9 @@ jobs:
       - name: Setup Strava webhook subscription
         run: |
           echo "Setting up Strava webhook subscription..."
+          cd scripts
+          npm install @aws-sdk/client-secrets-manager @aws-sdk/client-cloudformation
+          cd ..
           node scripts/strava-webhook-subscribe.js dev
 
       - name: Get CloudFront URL
