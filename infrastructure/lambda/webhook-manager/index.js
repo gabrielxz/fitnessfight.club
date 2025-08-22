@@ -12,12 +12,13 @@ const { SecretsManagerClient, GetSecretValueCommand } = require('@aws-sdk/client
 const secretsClient = new SecretsManagerClient({ region: process.env.AWS_REGION || 'us-east-1' })
 
 /**
- * CloudFormation Custom Resource handler
+ * CloudFormation Custom Resource handler for CDK Provider
+ * Returns attributes directly (Provider framework wraps them)
  */
 exports.handler = async (event, context) => {
   console.log('Custom Resource Event:', JSON.stringify(event, null, 2))
   
-  const { RequestType, ResourceProperties, PhysicalResourceId, RequestId, StackId, LogicalResourceId } = event
+  const { RequestType, ResourceProperties, PhysicalResourceId } = event
   
   // Extract properties
   const {
@@ -26,10 +27,10 @@ exports.handler = async (event, context) => {
     CallbackUrl,
     VerifyToken,
     Environment
-  } = ResourceProperties
+  } = ResourceProperties || {}
   
-  let responseData = {}
-  let physicalResourceId = PhysicalResourceId || `strava-webhook-${Environment}-${Date.now()}`
+  // Use existing physical resource ID or create new one
+  const physicalResourceId = PhysicalResourceId || `strava-webhook-${Environment}-${Date.now()}`
   
   try {
     // Get Strava credentials from Secrets Manager
@@ -41,15 +42,13 @@ exports.handler = async (event, context) => {
       ])
     } catch (secretError) {
       console.error('Failed to retrieve Strava credentials:', secretError)
-      // Return success with placeholder to allow deployment to continue
-      responseData = {
+      // Return with placeholder to allow deployment to continue
+      return {
+        physicalResourceId,
         SubscriptionId: 'placeholder-no-credentials',
-        CallbackUrl: CallbackUrl,
-        Message: 'Webhook subscription skipped - Strava credentials not configured',
-        Warning: 'Please configure Strava credentials in AWS Secrets Manager'
+        CallbackUrl: CallbackUrl || '',
+        Message: 'Webhook subscription skipped - Strava credentials not configured'
       }
-      await sendResponse(event, context, 'SUCCESS', responseData, physicalResourceId)
-      return
     }
     
     // Check if credentials are still placeholders
@@ -57,78 +56,66 @@ exports.handler = async (event, context) => {
         clientId === 'PLACEHOLDER_CLIENT_ID' || 
         clientSecret === 'PLACEHOLDER_CLIENT_SECRET') {
       console.log('Strava credentials are placeholders, skipping webhook subscription')
-      responseData = {
+      return {
+        physicalResourceId,
         SubscriptionId: 'placeholder-pending-config',
-        CallbackUrl: CallbackUrl,
-        Message: 'Webhook subscription pending - awaiting Strava credential configuration',
-        Warning: 'Update Strava credentials in AWS Secrets Manager to enable webhooks'
+        CallbackUrl: CallbackUrl || '',
+        Message: 'Webhook subscription pending - awaiting Strava credential configuration'
       }
-      await sendResponse(event, context, 'SUCCESS', responseData, physicalResourceId)
-      return
     }
     
-    switch (RequestType) {
-      case 'Create':
-      case 'Update':
-        // For both Create and Update, we'll ensure a valid subscription exists
-        let subscriptionId
-        try {
-          subscriptionId = await ensureWebhookSubscription(
-            clientId,
-            clientSecret,
-            CallbackUrl,
-            VerifyToken,
-            Environment
-          )
-        } catch (subscriptionError) {
-          console.error('Failed to create/update webhook subscription:', subscriptionError)
-          // Return success with error info to allow deployment to continue
-          responseData = {
-            SubscriptionId: 'error-subscription-failed',
-            CallbackUrl: CallbackUrl,
-            Message: `Webhook subscription failed: ${subscriptionError.message}`,
-            Error: subscriptionError.message
-          }
-          await sendResponse(event, context, 'SUCCESS', responseData, physicalResourceId)
-          return
-        }
-        
-        responseData = {
-          SubscriptionId: subscriptionId || 'unknown',
-          CallbackUrl: CallbackUrl,
-          Message: `Webhook subscription ${RequestType.toLowerCase()}d successfully`
-        }
-        
-        // Use subscription ID as physical resource ID for tracking
-        physicalResourceId = `strava-webhook-${Environment}-${subscriptionId || 'unknown'}`
-        break
-        
-      case 'Delete':
-        // Delete all existing subscriptions for this app
-        try {
-          await deleteAllSubscriptions(clientId, clientSecret, Environment)
-          responseData = {
-            SubscriptionId: 'deleted',
-            Message: 'Webhook subscription deleted successfully'
-          }
-        } catch (deleteError) {
-          console.error('Error during deletion (non-critical):', deleteError)
-          responseData = {
-            SubscriptionId: 'deleted',
-            Message: 'Webhook subscription deletion attempted'
-          }
-        }
-        break
-        
-      default:
-        throw new Error(`Unknown request type: ${RequestType}`)
+    if (RequestType === 'Delete') {
+      // Delete all existing subscriptions for this app
+      try {
+        await deleteAllSubscriptions(clientId, clientSecret, Environment)
+      } catch (deleteError) {
+        console.error('Error during deletion (non-critical):', deleteError)
+      }
+      
+      return {
+        physicalResourceId,
+        SubscriptionId: 'deleted',
+        Message: 'Webhook subscription deleted'
+      }
     }
     
-    await sendResponse(event, context, 'SUCCESS', responseData, physicalResourceId)
+    // For Create and Update
+    let subscriptionId
+    try {
+      subscriptionId = await ensureWebhookSubscription(
+        clientId,
+        clientSecret,
+        CallbackUrl,
+        VerifyToken,
+        Environment
+      )
+    } catch (subscriptionError) {
+      console.error('Failed to create/update webhook subscription:', subscriptionError)
+      // Return with error info to allow deployment to continue
+      return {
+        physicalResourceId,
+        SubscriptionId: 'error-subscription-failed',
+        CallbackUrl: CallbackUrl || '',
+        Message: `Webhook subscription failed: ${subscriptionError.message}`
+      }
+    }
+    
+    // Success - return the subscription ID
+    return {
+      physicalResourceId: `strava-webhook-${Environment}-${subscriptionId}`,
+      SubscriptionId: String(subscriptionId),
+      CallbackUrl: CallbackUrl || '',
+      Message: `Webhook subscription ${RequestType.toLowerCase()}d successfully`
+    }
     
   } catch (error) {
     console.error('Error handling custom resource:', error)
-    await sendResponse(event, context, 'FAILED', { Error: error.message }, physicalResourceId)
+    // Return error state but don't throw (allows deployment to continue)
+    return {
+      physicalResourceId,
+      SubscriptionId: 'error-unexpected',
+      Message: `Unexpected error: ${error.message}`
+    }
   }
 }
 
@@ -309,46 +296,4 @@ async function deleteAllSubscriptions(clientId, clientSecret, environment) {
   console.log('All subscriptions deleted')
 }
 
-/**
- * Send response back to CloudFormation
- */
-async function sendResponse(event, context, responseStatus, responseData, physicalResourceId) {
-  const responseBody = JSON.stringify({
-    Status: responseStatus,
-    Reason: `See the details in CloudWatch Log Stream: ${context.logStreamName}`,
-    PhysicalResourceId: physicalResourceId,
-    StackId: event.StackId,
-    RequestId: event.RequestId,
-    LogicalResourceId: event.LogicalResourceId,
-    Data: responseData
-  })
-  
-  console.log('Response:', responseBody)
-  
-  const parsedUrl = new URL(event.ResponseURL)
-  const options = {
-    hostname: parsedUrl.hostname,
-    port: 443,
-    path: parsedUrl.pathname + parsedUrl.search,
-    method: 'PUT',
-    headers: {
-      'Content-Type': '',
-      'Content-Length': responseBody.length
-    }
-  }
-  
-  return new Promise((resolve, reject) => {
-    const req = https.request(options, (res) => {
-      console.log(`CloudFormation response status: ${res.statusCode}`)
-      resolve()
-    })
-    
-    req.on('error', (error) => {
-      console.error('Error sending response to CloudFormation:', error)
-      reject(error)
-    })
-    
-    req.write(responseBody)
-    req.end()
-  })
-}
+// sendResponse function removed - CDK Provider framework handles CloudFormation responses
