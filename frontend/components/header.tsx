@@ -20,10 +20,14 @@ export function Header() {
   async function checkUser() {
     try {
       const currentUser = await getCurrentUser()
-      setUser({
-        username: currentUser.username,
-        email: currentUser.email,
-      })
+      if (currentUser) {
+        setUser({
+          username: currentUser.username,
+          email: currentUser.email,
+        })
+      } else {
+        setUser(null)
+      }
     } catch {
       setUser(null)
     } finally {
