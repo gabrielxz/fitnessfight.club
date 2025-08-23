@@ -1,0 +1,28 @@
+# Code Owners for fitnessfight.club
+# These owners will be automatically requested for review when someone opens a pull request
+
+# Global owners (own everything by default)
+* @yourusername
+
+# Frontend specific
+/frontend/ @yourusername
+*.tsx @yourusername
+*.css @yourusername
+
+# Infrastructure specific
+/infrastructure/ @yourusername
+*.ts @yourusername
+cdk.json @yourusername
+
+# CI/CD workflows
+/.github/workflows/ @yourusername
+
+# Documentation
+*.md @yourusername
+/docs/ @yourusername
+
+# Configuration files
+package.json @yourusername
+tsconfig*.json @yourusername
+.eslintrc* @yourusername
+.prettierrc* @yourusername

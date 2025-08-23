@@ -1,0 +1,22 @@
+{
+  "name": "fitnessfight-club-api",
+  "version": "1.0.0",
+  "description": "API Lambda function for Fitness Fight Club",
+  "main": "index.js",
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.0.0",
+    "@aws-sdk/client-secrets-manager": "^3.0.0",
+    "@aws-sdk/lib-dynamodb": "^3.0.0",
+    "aws-jwt-verify": "^5.1.0"
+  },
+  "scripts": {
+    "test": "jest --passWithNoTests"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "aws-sdk": "^2.1692.0",
+    "jest": "^30.0.5"
+  }
+}

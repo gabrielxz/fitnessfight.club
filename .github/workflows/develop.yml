@@ -1,0 +1,231 @@
+name: Deploy to Development
+
+on:
+  push:
+    branches:
+      - develop
+
+env:
+  NODE_VERSION: '20'
+  AWS_REGION: 'us-east-1'
+  ENVIRONMENT: 'dev'
+
+jobs:
+  test-and-lint:
+    name: Test and Lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run linting
+        run: npm run lint
+
+      - name: Run type checking
+        run: npm run typecheck
+
+      - name: Run tests
+        run: npm test
+
+  build-frontend:
+    name: Build Frontend
+    runs-on: ubuntu-latest
+    needs: test-and-lint
+    outputs:
+      cognito-configured: ${{ steps.get-cognito.outputs.COGNITO_CONFIGURED }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Get Cognito configuration from existing stack
+        id: get-cognito
+        run: |
+          # Try to get Cognito IDs from existing stack if it exists
+          STACK_EXISTS=$(aws cloudformation describe-stacks --stack-name fitnessfight-club-${{ env.ENVIRONMENT }}-Stack --query "Stacks[0].StackName" --output text 2>/dev/null || echo "")
+
+          if [ -n "$STACK_EXISTS" ]; then
+            echo "Getting Cognito configuration from existing stack..."
+            USER_POOL_ID=$(aws cloudformation describe-stacks \
+              --stack-name fitnessfight-club-${{ env.ENVIRONMENT }}-Stack \
+              --query "Stacks[0].Outputs[?OutputKey=='CognitoUserPoolId'].OutputValue" \
+              --output text)
+            USER_POOL_CLIENT_ID=$(aws cloudformation describe-stacks \
+              --stack-name fitnessfight-club-${{ env.ENVIRONMENT }}-Stack \
+              --query "Stacks[0].Outputs[?OutputKey=='AuthUserPoolClientId8216BF9A'].OutputValue" \
+              --output text)
+            echo "USER_POOL_ID=$USER_POOL_ID" >> $GITHUB_OUTPUT
+            echo "USER_POOL_CLIENT_ID=$USER_POOL_CLIENT_ID" >> $GITHUB_OUTPUT
+            echo "COGNITO_CONFIGURED=true" >> $GITHUB_OUTPUT
+            echo "Found User Pool ID: $USER_POOL_ID"
+            echo "Found Client ID: $USER_POOL_CLIENT_ID"
+          else
+            echo "Stack not found, using placeholder values (will be updated after deployment)"
+            echo "USER_POOL_ID=placeholder" >> $GITHUB_OUTPUT
+            echo "USER_POOL_CLIENT_ID=placeholder" >> $GITHUB_OUTPUT
+            echo "COGNITO_CONFIGURED=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build frontend
+        env:
+          NEXT_PUBLIC_USER_POOL_ID: ${{ steps.get-cognito.outputs.USER_POOL_ID }}
+          NEXT_PUBLIC_USER_POOL_CLIENT_ID: ${{ steps.get-cognito.outputs.USER_POOL_CLIENT_ID }}
+        run: |
+          echo "Building with Cognito configuration:"
+          echo "USER_POOL_ID: $NEXT_PUBLIC_USER_POOL_ID"
+          echo "CLIENT_ID: $NEXT_PUBLIC_USER_POOL_CLIENT_ID"
+          npm run build --workspace=frontend
+
+      - name: Upload frontend artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-build
+          path: frontend/out/
+          retention-days: 1
+
+  deploy-infrastructure:
+    name: Deploy Infrastructure
+    runs-on: ubuntu-latest
+    needs: build-frontend
+    environment:
+      name: development
+      url: ${{ steps.get-url.outputs.cloudfront_url }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Download frontend artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-build
+          path: frontend/out/
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Bootstrap CDK
+        run: |
+          cd infrastructure
+          npx cdk bootstrap aws://${{ secrets.AWS_ACCOUNT_ID }}/${{ env.AWS_REGION }} || true
+
+      - name: Deploy CDK stack
+        run: |
+          cd infrastructure
+          npm run deploy:dev
+
+      - name: Check if frontend needs rebuild
+        id: check-rebuild
+        run: |
+          # Get the actual Cognito IDs from the deployed stack
+          ACTUAL_USER_POOL_ID=$(aws cloudformation describe-stacks \
+            --stack-name fitnessfight-club-${{ env.ENVIRONMENT }}-Stack \
+            --query "Stacks[0].Outputs[?OutputKey=='CognitoUserPoolId'].OutputValue" \
+            --output text)
+          ACTUAL_CLIENT_ID=$(aws cloudformation describe-stacks \
+            --stack-name fitnessfight-club-${{ env.ENVIRONMENT }}-Stack \
+            --query "Stacks[0].Outputs[?OutputKey=='AuthUserPoolClientId8216BF9A'].OutputValue" \
+            --output text)
+
+          # Check if frontend was built with placeholder values
+          if [ "${{ needs.build-frontend.outputs.cognito-configured }}" = "false" ]; then
+            echo "Frontend needs rebuild with actual Cognito IDs"
+            echo "NEEDS_REBUILD=true" >> $GITHUB_OUTPUT
+            echo "USER_POOL_ID=$ACTUAL_USER_POOL_ID" >> $GITHUB_OUTPUT
+            echo "CLIENT_ID=$ACTUAL_CLIENT_ID" >> $GITHUB_OUTPUT
+          else
+            echo "Frontend already built with correct Cognito IDs"
+            echo "NEEDS_REBUILD=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Rebuild frontend with Cognito configuration
+        if: steps.check-rebuild.outputs.NEEDS_REBUILD == 'true'
+        env:
+          NEXT_PUBLIC_USER_POOL_ID: ${{ steps.check-rebuild.outputs.USER_POOL_ID }}
+          NEXT_PUBLIC_USER_POOL_CLIENT_ID: ${{ steps.check-rebuild.outputs.CLIENT_ID }}
+        run: |
+          echo "Rebuilding frontend with actual Cognito configuration..."
+          echo "USER_POOL_ID: $NEXT_PUBLIC_USER_POOL_ID"
+          echo "CLIENT_ID: $NEXT_PUBLIC_USER_POOL_CLIENT_ID"
+          npm run build --workspace=frontend
+
+          # Upload the rebuilt frontend to S3
+          aws s3 sync frontend/out/ s3://fitnessfight-club-frontend-${{ env.ENVIRONMENT }}/ --delete
+
+          # Invalidate CloudFront cache
+          DISTRIBUTION_ID=$(aws cloudformation describe-stacks \
+            --stack-name fitnessfight-club-${{ env.ENVIRONMENT }}-Stack \
+            --query "Stacks[0].Outputs[?OutputKey=='CloudFrontDistributionId'].OutputValue" \
+            --output text)
+          aws cloudfront create-invalidation --distribution-id $DISTRIBUTION_ID --paths "/*"
+          echo "Frontend rebuilt and deployed with correct Cognito configuration"
+
+      - name: Setup Strava webhook subscription
+        run: |
+          echo "Setting up Strava webhook subscription..."
+          cd scripts
+          npm install @aws-sdk/client-secrets-manager @aws-sdk/client-cloudformation
+          cd ..
+          node scripts/strava-webhook-subscribe.js dev
+
+      - name: Get CloudFront URL
+        id: get-url
+        run: |
+          CLOUDFRONT_URL=$(aws cloudformation describe-stacks \
+            --stack-name fitnessfight-club-dev-Stack \
+            --query "Stacks[0].Outputs[?OutputKey=='CloudFrontURL'].OutputValue" \
+            --output text \
+            --region ${{ env.AWS_REGION }})
+          echo "cloudfront_url=$CLOUDFRONT_URL" >> $GITHUB_OUTPUT
+          echo "Deployment URL: $CLOUDFRONT_URL"
+
+      - name: Post deployment summary
+        run: |
+          echo "### 🚀 Development Deployment Complete!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Environment:** Development" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "**URL:** ${{ steps.get-url.outputs.cloudfront_url }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Stack:** fitnessfight-club-dev-Stack" >> $GITHUB_STEP_SUMMARY
+          echo "**Region:** ${{ env.AWS_REGION }}" >> $GITHUB_STEP_SUMMARY

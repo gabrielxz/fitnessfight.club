@@ -1,0 +1,63 @@
+version: 2
+updates:
+  # Root package.json
+  - package-ecosystem: 'npm'
+    directory: '/'
+    schedule:
+      interval: 'weekly'
+      day: 'monday'
+      time: '09:00'
+    labels:
+      - 'dependencies'
+      - 'npm'
+    commit-message:
+      prefix: 'chore'
+      include: 'scope'
+    open-pull-requests-limit: 5
+
+  # Frontend package.json
+  - package-ecosystem: 'npm'
+    directory: '/frontend'
+    schedule:
+      interval: 'weekly'
+      day: 'monday'
+      time: '09:00'
+    labels:
+      - 'dependencies'
+      - 'frontend'
+      - 'npm'
+    commit-message:
+      prefix: 'chore'
+      include: 'scope'
+    open-pull-requests-limit: 5
+
+  # Infrastructure package.json
+  - package-ecosystem: 'npm'
+    directory: '/infrastructure'
+    schedule:
+      interval: 'weekly'
+      day: 'monday'
+      time: '09:00'
+    labels:
+      - 'dependencies'
+      - 'infrastructure'
+      - 'npm'
+    commit-message:
+      prefix: 'chore'
+      include: 'scope'
+    open-pull-requests-limit: 5
+
+  # GitHub Actions
+  - package-ecosystem: 'github-actions'
+    directory: '/'
+    schedule:
+      interval: 'weekly'
+      day: 'monday'
+      time: '09:00'
+    labels:
+      - 'dependencies'
+      - 'github-actions'
+    commit-message:
+      prefix: 'chore'
+      include: 'scope'
+    open-pull-requests-limit: 3
