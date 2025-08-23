@@ -140,10 +140,5 @@ jobs:
           echo "**Stack:** fitnessfight-club-prod-Stack" >> $GITHUB_STEP_SUMMARY
           echo "**Region:** ${{ env.AWS_REGION }}" >> $GITHUB_STEP_SUMMARY
 
-      - name: Create deployment tag
-        run: |
-          git config --global user.name "GitHub Actions"
-          git config --global user.email "actions@github.com"
-          TAG_NAME="prod-$(date +'%Y%m%d-%H%M%S')"
-          git tag -a $TAG_NAME -m "Production deployment at $(date)"
-          git push origin $TAG_NAME
+      # Note: Deployment tagging removed - requires additional GitHub token permissions
+      # To enable tagging, add a PAT with write permissions or configure GITHUB_TOKEN permissions
