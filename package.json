@@ -37,10 +37,5 @@
     "url": "git+https://github.com/yourusername/fitnessfight.club.git"
   },
   "author": "",
-  "license": "UNLICENSED",
-  "lint-staged": {
-    "*.{js,jsx,ts,tsx,json,md,yml,yaml,css}": [
-      "prettier --write"
-    ]
-  }
+  "license": "UNLICENSED"
 }
