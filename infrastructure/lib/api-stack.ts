@@ -1,5 +1,6 @@
 import * as cdk from 'aws-cdk-lib'
 import * as lambda from 'aws-cdk-lib/aws-lambda'
+import { NodejsFunction } from 'aws-cdk-lib/aws-lambda-nodejs'
 import * as apigateway from 'aws-cdk-lib/aws-apigateway'
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb'
 import * as cognito from 'aws-cdk-lib/aws-cognito'
@@ -22,7 +23,7 @@ export interface ApiStackProps {
 
 export class ApiStack extends Construct {
   public readonly api: apigateway.RestApi
-  public readonly apiFunction: lambda.Function
+  public readonly apiFunction: NodejsFunction
   public readonly webhookVerifyToken: string
 
   constructor(scope: Construct, id: string, props: ApiStackProps) {
@@ -61,12 +62,24 @@ export class ApiStack extends Construct {
     // Generate a secure webhook verification token
     this.webhookVerifyToken = `fitnessfight-webhook-${environment}-${Math.random().toString(36).substring(2, 15)}`
 
-    // Create Lambda function for API
-    this.apiFunction = new lambda.Function(this, 'ApiFunction', {
+    // Create Lambda function for API with bundled dependencies
+    this.apiFunction = new NodejsFunction(this, 'ApiFunction', {
       functionName: `fitnessfight-club-api-${environment}`,
       runtime: lambda.Runtime.NODEJS_20_X,
-      handler: 'index.handler',
-      code: lambda.Code.fromAsset(path.join(__dirname, '../lambda/api')),
+      handler: 'handler',
+      entry: path.join(__dirname, '../lambda/api/index.js'),
+      depsLockFilePath: path.join(__dirname, '../lambda/api/package-lock.json'),
+      bundling: {
+        minify: false, // Keep readable for debugging
+        sourceMap: false, // Disable source maps for now
+        forceDockerBundling: false,
+        nodeModules: [
+          'aws-jwt-verify',
+          '@aws-sdk/client-dynamodb',
+          '@aws-sdk/lib-dynamodb',
+          '@aws-sdk/client-secrets-manager',
+        ],
+      },
       environment: {
         ENVIRONMENT: environment,
         USERS_TABLE: usersTable.tableName,
