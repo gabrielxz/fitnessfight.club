@@ -29,7 +29,6 @@ export function SignUpForm({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    console.log('SignUpForm handleSubmit called with:', formData)
     const errors: Record<string, string> = {}
 
     // Validate email
@@ -48,12 +47,9 @@ export function SignUpForm({
     }
 
     if (Object.keys(errors).length > 0) {
-      console.log('Validation errors:', errors)
       setValidationErrors(errors)
       return
     }
-
-    console.log('No validation errors, calling onSubmit')
     setValidationErrors({})
     await onSubmit(formData)
   }
@@ -126,12 +122,7 @@ export function SignUpForm({
         <p className="text-sm text-red-600">Password: {validationErrors.password}</p>
       )}
 
-      <Button
-        type="submit"
-        className="w-full"
-        disabled={loading}
-        onClick={() => console.log('Button clicked!')}
-      >
+      <Button type="submit" className="w-full" disabled={loading}>
         {loading ? (
           <>
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
