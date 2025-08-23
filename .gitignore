@@ -53,6 +53,7 @@ cdk.context.json
 !next.config.js
 !postcss.config.js
 !eslint.config.js
+!.lintstagedrc.js
 !scripts/**/*.js
 infrastructure/**/*.js
 !infrastructure/eslint.config.js
