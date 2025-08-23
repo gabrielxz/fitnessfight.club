@@ -38,9 +38,6 @@ export class AuthStack extends Construct {
         },
       },
       customAttributes: {
-        stravaId: new cognito.StringAttribute({
-          mutable: true,
-        }),
         clubMember: new cognito.BooleanAttribute({
           mutable: true,
         }),
@@ -73,12 +70,26 @@ export class AuthStack extends Construct {
         scopes: [cognito.OAuthScope.EMAIL, cognito.OAuthScope.OPENID, cognito.OAuthScope.PROFILE],
         callbackUrls:
           environment === 'prod'
-            ? ['https://fitnessfight.club/callback', 'http://localhost:3000/callback']
-            : ['https://d3ry0nlojppxzx.cloudfront.net/callback', 'http://localhost:3000/callback'],
+            ? [
+                'https://fitnessfight.club/api/auth/callback',
+                'https://fitnessfight.club/signin',
+                'https://fitnessfight.club/signup',
+                'http://localhost:3000/api/auth/callback',
+                'http://localhost:3000/signin',
+                'http://localhost:3000/signup',
+              ]
+            : [
+                'https://dev.fitnessfight.club/api/auth/callback',
+                'https://dev.fitnessfight.club/signin',
+                'https://dev.fitnessfight.club/signup',
+                'http://localhost:3000/api/auth/callback',
+                'http://localhost:3000/signin',
+                'http://localhost:3000/signup',
+              ],
         logoutUrls:
           environment === 'prod'
             ? ['https://fitnessfight.club/', 'http://localhost:3000/']
-            : ['https://d3ry0nlojppxzx.cloudfront.net/', 'http://localhost:3000/'],
+            : ['https://dev.fitnessfight.club/', 'http://localhost:3000/'],
       },
       supportedIdentityProviders: [cognito.UserPoolClientIdentityProvider.COGNITO],
       accessTokenValidity: cdk.Duration.hours(1),

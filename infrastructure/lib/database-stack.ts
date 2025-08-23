@@ -40,6 +40,16 @@ export class DatabaseStack extends Construct {
       projectionType: dynamodb.ProjectionType.ALL,
     })
 
+    // Add GSI for Cognito ID lookups
+    this.usersTable.addGlobalSecondaryIndex({
+      indexName: 'cognitoId-index',
+      partitionKey: {
+        name: 'cognitoId',
+        type: dynamodb.AttributeType.STRING,
+      },
+      projectionType: dynamodb.ProjectionType.ALL,
+    })
+
     // Activities table - stores fitness activities from Strava
     this.activitiesTable = new dynamodb.Table(this, 'ActivitiesTable', {
       tableName: `fitnessfight-club-activities-${environment}`,

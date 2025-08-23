@@ -4,9 +4,13 @@ import { useEffect, useState, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Image from 'next/image'
 import { StravaConnectButton } from '@/components/strava-connect-button'
+import { useAuth } from '@/components/auth-provider'
+import Link from 'next/link'
+import { Button } from '@/components/ui/button'
 
 function HomeContent() {
   const searchParams = useSearchParams()
+  const { user, loading: authLoading } = useAuth()
   const [statusMessage, setStatusMessage] = useState<{
     type: 'success' | 'error'
     message: string
@@ -98,7 +102,23 @@ function HomeContent() {
           />
         </div>
         <div className="mt-12 flex items-center justify-center">
-          <StravaConnectButton />
+          {authLoading ? (
+            <div className="h-12 w-48 bg-muted animate-pulse rounded-md" />
+          ) : user ? (
+            <StravaConnectButton />
+          ) : (
+            <div className="text-center space-y-4">
+              <p className="text-muted-foreground">Please sign in to connect your Strava account</p>
+              <div className="flex items-center justify-center space-x-4">
+                <Link href="/signin">
+                  <Button variant="outline">Sign In</Button>
+                </Link>
+                <Link href="/signup">
+                  <Button>Sign Up</Button>
+                </Link>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </main>

@@ -17,6 +17,7 @@ export interface ApiStackProps {
   activitiesTable: dynamodb.Table
   challengesTable: dynamodb.Table
   userPool: cognito.UserPool
+  userPoolClient: cognito.UserPoolClient
 }
 
 export class ApiStack extends Construct {
@@ -27,7 +28,8 @@ export class ApiStack extends Construct {
   constructor(scope: Construct, id: string, props: ApiStackProps) {
     super(scope, id)
 
-    const { environment, usersTable, activitiesTable, challengesTable, userPool } = props
+    const { environment, usersTable, activitiesTable, challengesTable, userPool, userPoolClient } =
+      props
     const config = getConfig(environment)
 
     // Determine frontend and API URLs based on environment
@@ -71,6 +73,7 @@ export class ApiStack extends Construct {
         ACTIVITIES_TABLE: activitiesTable.tableName,
         CHALLENGES_TABLE: challengesTable.tableName,
         USER_POOL_ID: userPool.userPoolId,
+        USER_POOL_CLIENT_ID: userPoolClient.userPoolClientId,
         REGION: cdk.Stack.of(this).region,
         FRONTEND_URL: frontendUrl,
         API_URL: apiUrl,

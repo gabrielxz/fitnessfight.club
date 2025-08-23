@@ -180,6 +180,7 @@ export class FitnessFightStack extends cdk.Stack {
       activitiesTable: databaseStack.activitiesTable,
       challengesTable: databaseStack.challengesTable,
       userPool: authStack.userPool,
+      userPoolClient: authStack.userPoolClient,
     })
 
     // Output API URL

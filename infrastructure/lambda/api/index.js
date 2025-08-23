@@ -1,7 +1,10 @@
 // Basic API Lambda handler
 const { SecretsManagerClient, GetSecretValueCommand } = require('@aws-sdk/client-secrets-manager')
 const { DynamoDBClient } = require('@aws-sdk/client-dynamodb')
-const { DynamoDBDocumentClient, GetCommand, PutCommand, UpdateCommand } = require('@aws-sdk/lib-dynamodb')
+const { DynamoDBDocumentClient, GetCommand, PutCommand, UpdateCommand, QueryCommand } = require('@aws-sdk/lib-dynamodb')
+const { authenticate, requireAuth } = require('./auth')
+const { rateLimitMiddleware } = require('./rateLimit')
+const crypto = require('crypto')
 
 // Initialize AWS clients
 const secretsClient = new SecretsManagerClient({ region: process.env.REGION || 'us-east-1' })
@@ -62,16 +65,20 @@ async function getStravaCredentials() {
 }
 
 // Helper function to save user data to DynamoDB
-async function saveUserToDynamoDB(userData) {
+async function saveUserToDynamoDB(userData, cognitoId = null) {
   const now = new Date().toISOString()
   
   const item = {
     userId: String(userData.athlete.id), // Use athleteId as userId (primary key)
     stravaId: String(userData.athlete.id), // Also store as stravaId for GSI
     athleteId: userData.athlete.id, // Keep numeric athleteId for reference
+    cognitoId: cognitoId || null, // Link to Cognito user if provided
+    authProvider: cognitoId ? 'cognito' : 'strava', // Track auth method
+    emailVerified: cognitoId ? true : false, // Cognito users have verified emails
     firstName: userData.athlete.firstname || '',
     lastName: userData.athlete.lastname || '',
     username: userData.athlete.username || '',
+    email: userData.athlete.email || '', // Store email if available
     profile: userData.athlete.profile || '',
     profileMedium: userData.athlete.profile_medium || '',
     city: userData.athlete.city || '',
@@ -216,8 +223,56 @@ exports.handler = async (event) => {
     }
   }
 
-  // Handle Strava OAuth initiation
+  // Handle Strava OAuth initiation (requires authentication)
   if (path === '/api/v1/auth/strava' && httpMethod === 'GET') {
+    // Apply rate limiting
+    const rateLimitResult = await rateLimitMiddleware(event, 'default')
+    if (rateLimitResult.statusCode === 429) {
+      return { ...rateLimitResult, headers: { ...corsHeaders, ...rateLimitResult.headers } }
+    }
+
+    // Check if user is authenticated
+    const authResult = await authenticate(event)
+    if (!authResult.authenticated) {
+      return {
+        statusCode: 401,
+        headers: corsHeaders,
+        body: JSON.stringify({ 
+          error: 'Authentication required',
+          message: 'Please sign in to connect your Strava account'
+        }),
+      }
+    }
+
+    const cognitoId = authResult.user.cognitoId
+    
+    // Check if user already has Strava connected
+    try {
+      const existingUser = await docClient.send(new QueryCommand({
+        TableName: process.env.USERS_TABLE,
+        IndexName: 'cognitoId-index',
+        KeyConditionExpression: 'cognitoId = :cognitoId',
+        ExpressionAttributeValues: {
+          ':cognitoId': cognitoId,
+        },
+        Limit: 1,
+      }))
+
+      if (existingUser.Items && existingUser.Items.length > 0 && existingUser.Items[0].stravaId) {
+        return {
+          statusCode: 200,
+          headers: corsHeaders,
+          body: JSON.stringify({ 
+            message: 'Strava already connected',
+            stravaConnected: true,
+            athleteId: existingUser.Items[0].athleteId,
+          }),
+        }
+      }
+    } catch (error) {
+      console.error('Error checking existing Strava connection:', error)
+    }
+
     try {
       const { clientId } = await getStravaCredentials()
       // Build the correct redirect URI
@@ -238,8 +293,26 @@ exports.handler = async (event) => {
         }
       }
 
-      // Generate a random state for CSRF protection
-      const state = Math.random().toString(36).substring(2, 15)
+      // Generate secure state parameter with encrypted Cognito ID
+      const stateNonce = Math.random().toString(36).substring(2, 15)
+      const stateData = JSON.stringify({ cognitoId, nonce: stateNonce })
+      
+      // Create a deterministic key from environment variable
+      const encryptionKey = crypto.scryptSync(
+        process.env.USER_POOL_ID || 'default-key',
+        'fitnessfight-salt',
+        32
+      )
+      
+      // Encrypt the state data
+      const iv = crypto.randomBytes(16)
+      const cipher = crypto.createCipheriv('aes-256-gcm', encryptionKey, iv)
+      let encrypted = cipher.update(stateData, 'utf8', 'base64url')
+      encrypted += cipher.final('base64url')
+      const authTag = cipher.getAuthTag().toString('base64url')
+      
+      // Combine IV, encrypted data, and auth tag
+      const state = `${iv.toString('base64url')}.${encrypted}.${authTag}`
       
       const authorizationUrl = `https://www.strava.com/oauth/authorize?` +
         `client_id=${clientId}` +
@@ -350,10 +423,38 @@ exports.handler = async (event) => {
         timestamp: new Date().toISOString(),
       })
 
-      // Save user data to DynamoDB
+      // Decrypt and extract Cognito ID from secure state
+      let cognitoId = null
+      if (state && state.includes('.')) {
+        try {
+          const [ivStr, encrypted, authTag] = state.split('.')
+          
+          // Recreate the encryption key
+          const encryptionKey = crypto.scryptSync(
+            process.env.USER_POOL_ID || 'default-key',
+            'fitnessfight-salt',
+            32
+          )
+          
+          // Decrypt the state
+          const iv = Buffer.from(ivStr, 'base64url')
+          const decipher = crypto.createDecipheriv('aes-256-gcm', encryptionKey, iv)
+          decipher.setAuthTag(Buffer.from(authTag, 'base64url'))
+          
+          let decrypted = decipher.update(encrypted, 'base64url', 'utf8')
+          decrypted += decipher.final('utf8')
+          
+          const stateData = JSON.parse(decrypted)
+          cognitoId = stateData.cognitoId
+        } catch (error) {
+          console.warn('Failed to decrypt state parameter:', error.message)
+        }
+      }
+
+      // Save user data to DynamoDB with Cognito ID linkage
       try {
-        await saveUserToDynamoDB(tokenData)
-        console.log('User successfully saved to database')
+        await saveUserToDynamoDB(tokenData, cognitoId)
+        console.log('User successfully saved to database with Cognito ID:', cognitoId || 'none')
       } catch (dbError) {
         console.error('Failed to save user to database:', dbError)
         // Continue anyway - user is authenticated, we just couldn't save to DB
@@ -510,14 +611,54 @@ exports.handler = async (event) => {
 
     // Parse body if present
     const requestBody = body ? JSON.parse(body) : null
+    
+    // Check authentication for protected endpoints
+    const protectedPaths = [
+      '/api/v1/users',
+      '/api/v1/activities',
+      '/api/v1/challenges'
+    ]
+    
+    const requiresAuth = protectedPaths.some(p => path.startsWith(p)) && 
+                        httpMethod !== 'GET' || // Write operations require auth
+                        path.startsWith('/api/v1/users') || // User endpoints always require auth
+                        path.startsWith('/api/v1/activities') // Activities require auth
+    
+    let authUser = null
+    if (requiresAuth) {
+      const authResult = await authenticate(event)
+      if (!authResult.authenticated) {
+        return {
+          statusCode: 401,
+          headers: corsHeaders,
+          body: JSON.stringify({
+            error: 'Unauthorized',
+            message: authResult.error || 'Authentication required',
+          }),
+        }
+      }
+      authUser = authResult.user
+    }
 
     // Route to appropriate handler based on path and method
     switch (true) {
-      // Users endpoints
+      // Users endpoints (all require authentication)
       case path === '/api/v1/users' && httpMethod === 'GET':
+        // Get user profile from Cognito ID
+        const userQuery = await docClient.send(new QueryCommand({
+          TableName: process.env.USERS_TABLE,
+          IndexName: 'cognitoId-index',
+          KeyConditionExpression: 'cognitoId = :cognitoId',
+          ExpressionAttributeValues: {
+            ':cognitoId': authUser.cognitoId,
+          },
+          Limit: 1,
+        }))
+        
         response.body = JSON.stringify({
-          message: 'Get user profile',
-          userId: event.requestContext?.authorizer?.claims?.sub,
+          success: true,
+          user: userQuery.Items && userQuery.Items[0] ? userQuery.Items[0] : null,
+          cognitoId: authUser.cognitoId,
         })
         break
 
