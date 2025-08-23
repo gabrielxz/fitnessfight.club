@@ -1,10 +1,11 @@
 // Basic API Lambda handler
 const { SecretsManagerClient, GetSecretValueCommand } = require('@aws-sdk/client-secrets-manager')
 const { DynamoDBClient } = require('@aws-sdk/client-dynamodb')
-const { DynamoDBDocumentClient, GetCommand, PutCommand, UpdateCommand, QueryCommand } = require('@aws-sdk/lib-dynamodb')
+const { DynamoDBDocumentClient, GetCommand, PutCommand, UpdateCommand, QueryCommand, DeleteCommand } = require('@aws-sdk/lib-dynamodb')
 const { authenticate, requireAuth } = require('./auth')
 const { rateLimitMiddleware } = require('./rateLimit')
 const crypto = require('crypto')
+const { startOfWeek, endOfWeek } = require('date-fns')
 
 // Initialize AWS clients
 const secretsClient = new SecretsManagerClient({ region: process.env.REGION || 'us-east-1' })
@@ -198,8 +199,115 @@ async function getValidStravaToken(athleteId) {
   }
 }
 
+// Helper function to fetch complete activity details from Strava
+async function fetchStravaActivity(activityId, accessToken) {
+  try {
+    const response = await fetch(`https://www.strava.com/api/v3/activities/${activityId}`, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    })
+
+    if (!response.ok) {
+      if (response.status === 401) {
+        throw new Error('UNAUTHORIZED')
+      }
+      throw new Error(`Failed to fetch activity: ${response.status}`)
+    }
+
+    return await response.json()
+  } catch (error) {
+    console.error('Error fetching activity from Strava:', error)
+    throw error
+  }
+}
+
+// Helper function to save/update activity in DynamoDB
+async function saveActivityToDynamoDB(activity, userId) {
+  const now = new Date().toISOString()
+  
+  // Validate required fields
+  if (!activity.id) {
+    throw new Error('Activity ID is required')
+  }
+  
+  if (!activity.start_date) {
+    console.warn(`Activity ${activity.id} missing start_date, using current time`)
+  }
+  
+  // Validate and sanitize numeric fields
+  const validateNumber = (value, defaultValue = 0) => {
+    const num = Number(value)
+    return isNaN(num) || num < 0 ? defaultValue : num
+  }
+  
+  const item = {
+    userId: String(userId),
+    activityId: String(activity.id),
+    name: activity.name || 'Untitled Activity',
+    type: activity.type || 'Workout',
+    distance: validateNumber(activity.distance, 0), // meters
+    duration: validateNumber(activity.moving_time, 0), // seconds
+    elapsedTime: validateNumber(activity.elapsed_time, 0), // seconds
+    startDate: activity.start_date || now,
+    timestamp: activity.start_date ? Math.floor(new Date(activity.start_date).getTime() / 1000) : Math.floor(Date.now() / 1000),
+    averageSpeed: validateNumber(activity.average_speed, 0),
+    maxSpeed: validateNumber(activity.max_speed, 0),
+    averageHeartrate: activity.average_heartrate ? validateNumber(activity.average_heartrate, null) : null,
+    maxHeartrate: activity.max_heartrate ? validateNumber(activity.max_heartrate, null) : null,
+    elevationGain: validateNumber(activity.total_elevation_gain, 0),
+    clubId: 'default', // For future club support
+    createdAt: now,
+    updatedAt: now,
+  }
+  
+  // Validate timestamp is reasonable (not in the future, not before 2000)
+  const minTimestamp = 946684800 // Jan 1, 2000
+  const maxTimestamp = Math.floor(Date.now() / 1000) + 86400 // Allow 1 day in future for timezone issues
+  if (item.timestamp < minTimestamp || item.timestamp > maxTimestamp) {
+    console.warn(`Activity ${activity.id} has invalid timestamp: ${item.timestamp}, using current time`)
+    item.timestamp = Math.floor(Date.now() / 1000)
+  }
+
+  try {
+    await docClient.send(new PutCommand({
+      TableName: process.env.ACTIVITIES_TABLE,
+      Item: item,
+    }))
+    console.log('Activity saved to DynamoDB:', { userId: item.userId, activityId: item.activityId, name: item.name })
+    return item
+  } catch (error) {
+    console.error('Error saving activity to DynamoDB:', error)
+    throw error
+  }
+}
+
+// Helper function to delete activity from DynamoDB
+async function deleteActivityFromDynamoDB(activityId, userId) {
+  try {
+    await docClient.send(new DeleteCommand({
+      TableName: process.env.ACTIVITIES_TABLE,
+      Key: {
+        userId: String(userId),
+        activityId: String(activityId),
+      },
+    }))
+    console.log('Activity deleted from DynamoDB:', { userId, activityId })
+    return true
+  } catch (error) {
+    console.error('Error deleting activity from DynamoDB:', error)
+    throw error
+  }
+}
+
 exports.handler = async (event) => {
-  console.log('Event:', JSON.stringify(event, null, 2))
+  // Only log full event in dev environment
+  if (process.env.ENVIRONMENT === 'dev') {
+    console.log('Event:', JSON.stringify(event, null, 2))
+  } else {
+    // Production: log minimal info
+    console.log('Request:', { method: event.httpMethod, path: event.path })
+  }
 
   const { httpMethod, path, pathParameters, queryStringParameters, body, headers } = event
 
@@ -525,7 +633,43 @@ exports.handler = async (event) => {
   // Handle Strava webhook events (POST request)
   if (path === '/api/v1/webhook/strava' && httpMethod === 'POST') {
     try {
-      const webhookEvent = body ? JSON.parse(body) : null
+      // Parse the webhook payload with proper error handling
+      let webhookEvent
+      try {
+        webhookEvent = body ? JSON.parse(body) : null
+      } catch (parseError) {
+        console.error('Invalid JSON in webhook body:', parseError)
+        return {
+          statusCode: 400,
+          headers: corsHeaders,
+          body: JSON.stringify({ error: 'Invalid request body' }),
+        }
+      }
+      
+      // Validate webhook signature for security (if provided by Strava)
+      // Strava sends a signature in the 'hub.signature' header for webhook validation
+      const signature = headers['hub.signature'] || headers['Hub-Signature']
+      if (signature && process.env.STRAVA_CLIENT_SECRET_SECRET_NAME) {
+        try {
+          const { clientSecret } = await getStravaCredentials()
+          const expectedSignature = 'sha256=' + crypto
+            .createHmac('sha256', clientSecret)
+            .update(body || '')
+            .digest('hex')
+          
+          if (signature !== expectedSignature) {
+            console.error('Invalid webhook signature')
+            return {
+              statusCode: 401,
+              headers: corsHeaders,
+              body: JSON.stringify({ error: 'Invalid signature' }),
+            }
+          }
+        } catch (sigError) {
+          console.error('Error validating webhook signature:', sigError)
+          // Continue processing even if signature validation fails (for backward compatibility)
+        }
+      }
       
       console.log('Strava webhook event received:', JSON.stringify(webhookEvent, null, 2))
       
@@ -539,48 +683,119 @@ exports.handler = async (event) => {
 
       const { object_type, object_id, aspect_type, owner_id, subscription_id, event_time, updates } = webhookEvent
 
-      // Log event details
-      console.log('Webhook event details:', {
-        objectType: object_type,
-        objectId: object_id,
-        aspectType: aspect_type,
-        ownerId: owner_id,
-        subscriptionId: subscription_id,
-        eventTime: event_time,
-        updates: updates,
-        timestamp: new Date().toISOString()
-      })
+      // Validate required webhook fields
+      if (!object_type || !object_id || !aspect_type || !owner_id) {
+        console.error('Missing required webhook fields:', { object_type, object_id, aspect_type, owner_id })
+        return {
+          statusCode: 400,
+          headers: corsHeaders,
+          body: JSON.stringify({ error: 'Missing required webhook fields' }),
+        }
+      }
+
+      // Validate field types and ranges
+      if (typeof object_id !== 'number' || object_id <= 0) {
+        console.error('Invalid object_id:', object_id)
+        return {
+          statusCode: 400,
+          headers: corsHeaders,
+          body: JSON.stringify({ error: 'Invalid object_id' }),
+        }
+      }
+
+      if (typeof owner_id !== 'number' || owner_id <= 0) {
+        console.error('Invalid owner_id:', owner_id)
+        return {
+          statusCode: 400,
+          headers: corsHeaders,
+          body: JSON.stringify({ error: 'Invalid owner_id' }),
+        }
+      }
+
+      // Log event details (only in dev environment)
+      if (process.env.ENVIRONMENT === 'dev') {
+        console.log('Webhook event details:', {
+          objectType: object_type,
+          objectId: object_id,
+          aspectType: aspect_type,
+          ownerId: owner_id,
+          subscriptionId: subscription_id,
+          eventTime: event_time,
+          updates: updates,
+          timestamp: new Date().toISOString()
+        })
+      } else {
+        // Production: log minimal info
+        console.log('Webhook event:', { type: object_type, aspect: aspect_type, id: object_id })
+      }
+
+      // Only process activity events
+      if (object_type !== 'activity') {
+        console.log(`Ignoring non-activity event: ${object_type}`)
+        return {
+          statusCode: 200,
+          headers: corsHeaders,
+          body: JSON.stringify({ 
+            success: true,
+            message: 'Non-activity event ignored',
+          }),
+        }
+      }
 
       // Handle different event types
       switch (aspect_type) {
         case 'create':
-          console.log(`New ${object_type} created:`, {
-            id: object_id,
-            athleteId: owner_id,
-            eventTime: new Date(event_time * 1000).toISOString()
-          })
-          // TODO: Fetch full activity details using the athlete's access token
-          // TODO: Store activity in DynamoDB activities table
-          break
-          
         case 'update':
-          console.log(`${object_type} updated:`, {
-            id: object_id,
-            athleteId: owner_id,
-            updates: updates,
-            eventTime: new Date(event_time * 1000).toISOString()
-          })
-          // TODO: Fetch updated activity details
-          // TODO: Update activity in DynamoDB
+          try {
+            console.log(`${aspect_type === 'create' ? 'New' : 'Updated'} activity:`, {
+              id: object_id,
+              athleteId: owner_id,
+              eventTime: new Date(event_time * 1000).toISOString()
+            })
+
+            // Get valid access token for the athlete
+            const accessToken = await getValidStravaToken(owner_id)
+            
+            // Fetch complete activity details from Strava
+            const activity = await fetchStravaActivity(object_id, accessToken)
+            
+            // Save/update activity in DynamoDB
+            await saveActivityToDynamoDB(activity, owner_id)
+            
+            console.log(`Activity ${aspect_type}d successfully:`, object_id)
+          } catch (error) {
+            console.error(`Failed to process ${aspect_type} event:`, error)
+            
+            // If token is invalid, try to refresh
+            if (error.message === 'UNAUTHORIZED') {
+              try {
+                console.log('Token expired, attempting refresh...')
+                const updatedUser = await refreshStravaToken(owner_id)
+                const activity = await fetchStravaActivity(object_id, updatedUser.accessToken)
+                await saveActivityToDynamoDB(activity, owner_id)
+                console.log(`Activity ${aspect_type}d successfully after token refresh:`, object_id)
+              } catch (refreshError) {
+                console.error('Failed even after token refresh:', refreshError)
+              }
+            }
+          }
           break
           
         case 'delete':
-          console.log(`${object_type} deleted:`, {
-            id: object_id,
-            athleteId: owner_id,
-            eventTime: new Date(event_time * 1000).toISOString()
-          })
-          // TODO: Mark activity as deleted in DynamoDB
+          try {
+            console.log(`Activity deleted:`, {
+              id: object_id,
+              athleteId: owner_id,
+              eventTime: new Date(event_time * 1000).toISOString()
+            })
+            
+            // Delete activity from DynamoDB
+            await deleteActivityFromDynamoDB(object_id, owner_id)
+            
+            console.log('Activity deleted successfully:', object_id)
+          } catch (error) {
+            console.error('Failed to delete activity:', error)
+          }
           break
           
         default:
@@ -648,6 +863,164 @@ exports.handler = async (event) => {
 
     // Route to appropriate handler based on path and method
     switch (true) {
+      // Weekly stats endpoint
+      case path.match(/\/api\/v1\/users\/([^/]+)\/weekly-stats/) !== null && httpMethod === 'GET':
+        const userIdMatch = path.match(/\/api\/v1\/users\/([^/]+)\/weekly-stats/)
+        const requestedUserId = userIdMatch ? userIdMatch[1] : null
+        
+        if (!requestedUserId) {
+          response = {
+            statusCode: 400,
+            headers: corsHeaders,
+            body: JSON.stringify({
+              error: 'Bad Request',
+              message: 'User ID is required',
+            }),
+          }
+          break
+        }
+
+        // Verify the user is requesting their own data or has appropriate permissions
+        if (authUser) {
+          // Get the user's Strava ID from their Cognito ID
+          const userQuery = await docClient.send(new QueryCommand({
+            TableName: process.env.USERS_TABLE,
+            IndexName: 'cognitoId-index',
+            KeyConditionExpression: 'cognitoId = :cognitoId',
+            ExpressionAttributeValues: {
+              ':cognitoId': authUser.cognitoId,
+            },
+            Limit: 1,
+          }))
+          
+          const currentUser = userQuery.Items && userQuery.Items[0] ? userQuery.Items[0] : null
+          
+          // Check if user is requesting their own data
+          if (!currentUser || currentUser.userId !== requestedUserId) {
+            response = {
+              statusCode: 403,
+              headers: corsHeaders,
+              body: JSON.stringify({
+                error: 'Forbidden',
+                message: 'You can only view your own stats',
+              }),
+            }
+            break
+          }
+        } else {
+          response = {
+            statusCode: 401,
+            headers: corsHeaders,
+            body: JSON.stringify({
+              error: 'Unauthorized',
+              message: 'Authentication required',
+            }),
+          }
+          break
+        }
+
+        try {
+          // Calculate current week boundaries (Monday to Sunday)
+          const now = new Date()
+          const weekStart = startOfWeek(now, { weekStartsOn: 1 }) // Monday
+          const weekEnd = endOfWeek(now, { weekStartsOn: 1 })     // Sunday 23:59:59
+          
+          // Convert to Unix timestamps for DynamoDB query
+          const startTimestamp = Math.floor(weekStart.getTime() / 1000)
+          const endTimestamp = Math.floor(weekEnd.getTime() / 1000)
+          
+          console.log('Querying activities for week:', {
+            userId: requestedUserId,
+            weekStart: weekStart.toISOString(),
+            weekEnd: weekEnd.toISOString(),
+            startTimestamp,
+            endTimestamp,
+          })
+          
+          // Query activities for the current week using GSI with pagination
+          let allActivities = []
+          let lastEvaluatedKey = null
+          let queryCount = 0
+          const maxQueries = 10 // Prevent infinite loops
+          
+          do {
+            const queryParams = {
+              TableName: process.env.ACTIVITIES_TABLE,
+              IndexName: 'userId-timestamp-index',
+              KeyConditionExpression: 'userId = :userId AND #ts BETWEEN :start AND :end',
+              ExpressionAttributeNames: {
+                '#ts': 'timestamp',
+              },
+              ExpressionAttributeValues: {
+                ':userId': requestedUserId,
+                ':start': startTimestamp,
+                ':end': endTimestamp,
+              },
+              Limit: 100, // Query up to 100 items per request
+            }
+            
+            // Add pagination key if we have one
+            if (lastEvaluatedKey) {
+              queryParams.ExclusiveStartKey = lastEvaluatedKey
+            }
+            
+            const activitiesQuery = await docClient.send(new QueryCommand(queryParams))
+            
+            if (activitiesQuery.Items) {
+              allActivities = allActivities.concat(activitiesQuery.Items)
+            }
+            
+            lastEvaluatedKey = activitiesQuery.LastEvaluatedKey
+            queryCount++
+            
+            // Log pagination progress in dev
+            if (process.env.ENVIRONMENT === 'dev' && lastEvaluatedKey) {
+              console.log(`Pagination: Retrieved ${allActivities.length} activities so far, continuing...`)
+            }
+          } while (lastEvaluatedKey && queryCount < maxQueries)
+          
+          if (queryCount >= maxQueries) {
+            console.warn(`Weekly stats query hit max pagination limit for user ${requestedUserId}`)
+          }
+          
+          // Calculate total duration in hours
+          const activities = allActivities
+          const totalSeconds = activities.reduce((sum, activity) => sum + (activity.duration || 0), 0)
+          const totalHours = Math.round((totalSeconds / 3600) * 10) / 10 // Round to 1 decimal place
+          
+          // Format week range for display
+          const weekRangeStart = weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+          const weekRangeEnd = weekEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+          const weekRange = `${weekRangeStart} - ${weekRangeEnd}`
+          
+          response.body = JSON.stringify({
+            success: true,
+            userId: requestedUserId,
+            weekRange,
+            totalHours,
+            activityCount: activities.length,
+            activities: activities.map(a => ({
+              activityId: a.activityId,
+              name: a.name,
+              type: a.type,
+              duration: a.duration,
+              distance: a.distance,
+              startDate: a.startDate,
+            })),
+          })
+        } catch (error) {
+          console.error('Error fetching weekly stats:', error)
+          response = {
+            statusCode: 500,
+            headers: corsHeaders,
+            body: JSON.stringify({
+              error: 'Internal Server Error',
+              message: 'Failed to fetch weekly stats',
+            }),
+          }
+        }
+        break
+
       // Users endpoints (all require authentication)
       case path === '/api/v1/users' && httpMethod === 'GET':
         // Get user profile from Cognito ID

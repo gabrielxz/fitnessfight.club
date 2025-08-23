@@ -1,33 +1,36 @@
 const { handler } = require('./index')
 const { authenticate } = require('./auth')
-const AWS = require('aws-sdk')
 
-// Mock AWS SDK
-jest.mock('aws-sdk', () => {
-  const mockDynamoDB = {
-    get: jest.fn(),
-    put: jest.fn(),
-    query: jest.fn(),
-    scan: jest.fn(),
-  }
-  
-  const mockSecretsManager = {
-    getSecretValue: jest.fn(),
-  }
-  
-  return {
-    DynamoDB: {
-      DocumentClient: jest.fn(() => mockDynamoDB),
-    },
-    SecretsManager: jest.fn(() => mockSecretsManager),
-  }
-})
+// Mock AWS SDK v3 modules
+jest.mock('@aws-sdk/client-dynamodb', () => ({
+  DynamoDBClient: jest.fn(() => ({})),
+}))
+
+jest.mock('@aws-sdk/lib-dynamodb', () => ({
+  DynamoDBDocumentClient: {
+    from: jest.fn(() => ({
+      send: jest.fn(),
+    })),
+  },
+  GetCommand: jest.fn(),
+  PutCommand: jest.fn(),
+  QueryCommand: jest.fn(),
+  UpdateCommand: jest.fn(),
+  DeleteCommand: jest.fn(),
+}))
+
+jest.mock('@aws-sdk/client-secrets-manager', () => ({
+  SecretsManagerClient: jest.fn(() => ({
+    send: jest.fn(),
+  })),
+  GetSecretValueCommand: jest.fn(),
+}))
 
 // Mock auth module
 jest.mock('./auth')
 
-// Mock node-fetch
-jest.mock('node-fetch', () => jest.fn())
+// Mock node-fetch (if used directly)
+global.fetch = jest.fn()
 const fetch = require('node-fetch')
 
 describe('Lambda Handler Integration Tests', () => {
