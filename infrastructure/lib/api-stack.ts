@@ -78,6 +78,7 @@ export class ApiStack extends Construct {
           '@aws-sdk/client-dynamodb',
           '@aws-sdk/lib-dynamodb',
           '@aws-sdk/client-secrets-manager',
+          'date-fns',
         ],
       },
       environment: {

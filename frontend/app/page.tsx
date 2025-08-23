@@ -4,6 +4,7 @@ import { useEffect, useState, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Image from 'next/image'
 import { StravaConnectButton } from '@/components/strava-connect-button'
+import { WeeklyStatsComponent } from '@/components/weekly-stats'
 import { useAuth } from '@/components/auth-provider'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
@@ -72,7 +73,7 @@ function HomeContent() {
     return () => {
       if (timer) clearTimeout(timer)
     }
-  }, [searchParams])
+  }, [searchParams, refreshUser])
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-24">
@@ -104,11 +105,14 @@ function HomeContent() {
             priority
           />
         </div>
-        <div className="mt-12 flex items-center justify-center">
+        <div className="mt-12 flex flex-col items-center justify-center">
           {authLoading ? (
             <div className="h-12 w-48 bg-muted animate-pulse rounded-md" />
           ) : user ? (
-            <StravaConnectButton />
+            <>
+              <StravaConnectButton />
+              <WeeklyStatsComponent />
+            </>
           ) : (
             <div className="text-center space-y-4">
               <p className="text-muted-foreground">Please sign in to connect your Strava account</p>
