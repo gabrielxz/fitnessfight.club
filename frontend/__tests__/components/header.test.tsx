@@ -1,14 +1,11 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { Header } from '@/components/header'
-import { signOut } from '@/lib/auth'
-import { getCurrentUser } from 'aws-amplify/auth'
+import { signOut, getCurrentUser } from '@/lib/auth'
 import { useRouter } from 'next/navigation'
 
 // Mock dependencies
-jest.mock('aws-amplify/auth')
 jest.mock('@/lib/auth')
 jest.mock('next/navigation')
-jest.mock('@/lib/amplify-config', () => ({}))
 jest.mock('next/link', () => {
   return {
     __esModule: true,

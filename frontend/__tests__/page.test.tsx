@@ -3,9 +3,7 @@ import Home from '@/app/page'
 import { AuthProvider } from '@/components/auth-provider'
 
 // Mock auth dependencies
-jest.mock('aws-amplify/auth')
-jest.mock('aws-amplify/utils')
-jest.mock('@/lib/amplify-config', () => ({}))
+jest.mock('@/lib/auth')
 
 describe('Home Page', () => {
   beforeEach(() => {

@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { getConfig } from '@/lib/config'
-import { fetchAuthSession } from 'aws-amplify/auth'
+import { getAuthTokens } from '@/lib/cognito-client'
 
 export function StravaConnectButton() {
   const [isLoading, setIsLoading] = useState(false)
@@ -16,8 +16,8 @@ export function StravaConnectButton() {
       const config = getConfig()
 
       // Get the auth token
-      const session = await fetchAuthSession()
-      const token = session.tokens?.idToken?.toString()
+      const tokens = getAuthTokens()
+      const token = tokens.IdToken
 
       if (!token) {
         throw new Error('You must be signed in to connect Strava')
