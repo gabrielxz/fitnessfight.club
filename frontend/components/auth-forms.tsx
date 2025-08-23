@@ -27,18 +27,9 @@ export function SignUpForm({
     return emailRegex.test(email)
   }
 
-  const validatePassword = (password: string): string[] => {
-    const errors: string[] = []
-    if (password.length < 8) errors.push('At least 8 characters')
-    if (!/[A-Z]/.test(password)) errors.push('One uppercase letter')
-    if (!/[a-z]/.test(password)) errors.push('One lowercase letter')
-    if (!/[0-9]/.test(password)) errors.push('One number')
-    if (!/[!@#$%^&*(),.?":{}|<>]/.test(password)) errors.push('One special character')
-    return errors
-  }
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    console.log('SignUpForm handleSubmit called with:', formData)
     const errors: Record<string, string> = {}
 
     // Validate email
@@ -46,10 +37,9 @@ export function SignUpForm({
       errors.email = 'Please enter a valid email address'
     }
 
-    // Validate password
-    const passwordErrors = validatePassword(formData.password)
-    if (passwordErrors.length > 0) {
-      errors.password = `Password must include: ${passwordErrors.join(', ')}`
+    // Validate password - only check length
+    if (formData.password.length < 8) {
+      errors.password = 'Password must be at least 8 characters'
     }
 
     // Validate name
@@ -58,10 +48,12 @@ export function SignUpForm({
     }
 
     if (Object.keys(errors).length > 0) {
+      console.log('Validation errors:', errors)
       setValidationErrors(errors)
       return
     }
 
+    console.log('No validation errors, calling onSubmit')
     setValidationErrors({})
     await onSubmit(formData)
   }
@@ -122,14 +114,24 @@ export function SignUpForm({
           onChange={(e) => setFormData({ ...formData, password: e.target.value })}
           disabled={loading}
         />
-        <p className="mt-1 text-xs text-gray-500">
-          Must be at least 8 characters with uppercase, lowercase, and numbers
-        </p>
+        <p className="mt-1 text-xs text-gray-500">Must be at least 8 characters</p>
       </div>
 
       {error && <div className="p-3 text-sm text-red-600 bg-red-50 rounded-md">{error}</div>}
 
-      <Button type="submit" className="w-full" disabled={loading}>
+      {validationErrors.email && (
+        <p className="text-sm text-red-600">Email: {validationErrors.email}</p>
+      )}
+      {validationErrors.password && (
+        <p className="text-sm text-red-600">Password: {validationErrors.password}</p>
+      )}
+
+      <Button
+        type="submit"
+        className="w-full"
+        disabled={loading}
+        onClick={() => console.log('Button clicked!')}
+      >
         {loading ? (
           <>
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />

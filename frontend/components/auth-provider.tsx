@@ -1,9 +1,7 @@
 'use client'
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
-import { getCurrentUser, fetchAuthSession } from 'aws-amplify/auth'
-import { Hub } from 'aws-amplify/utils'
-import '@/lib/amplify-config'
+import { getCurrentUser } from '@/lib/auth'
 
 interface AuthContextType {
   user: AuthUser | null
@@ -34,13 +32,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function checkUser() {
     try {
       const currentUser = await getCurrentUser()
-      const session = await fetchAuthSession()
 
-      setUser({
-        username: currentUser.username,
-        cognitoId: currentUser.userId,
-        email: session.tokens?.idToken?.payload?.email as string | undefined,
-      })
+      if (currentUser) {
+        setUser({
+          username: currentUser.username,
+          cognitoId: currentUser.cognitoId,
+          email: currentUser.email,
+        })
+      } else {
+        setUser(null)
+      }
     } catch {
       setUser(null)
     } finally {
@@ -51,22 +52,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     checkUser()
 
-    // Listen for auth events
-    const unsubscribe = Hub.listen('auth', ({ payload }) => {
-      switch (payload.event) {
-        case 'signedIn':
-        case 'tokenRefresh':
-          checkUser()
-          break
-        case 'signedOut':
-          setUser(null)
-          break
-        default:
-          break
-      }
-    })
-
-    return unsubscribe
+    // For now, we'll remove the Hub listener
+    // You could implement a custom event system or polling if needed
   }, [])
 
   return (
