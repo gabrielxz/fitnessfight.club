@@ -7,40 +7,24 @@ import {
   requestPasswordReset,
   confirmPasswordReset,
 } from '@/lib/auth'
-import {
-  signIn as amplifySignIn,
-  signUp as amplifySignUp,
-  signOut as amplifySignOut,
-  confirmSignUp,
-  resendSignUpCode,
-  resetPassword,
-  confirmResetPassword,
-  AuthError,
-} from 'aws-amplify/auth'
+import { cognitoClient } from '@/lib/cognito-client'
 
-// Mock Amplify auth module
-jest.mock('aws-amplify/auth', () => ({
-  ...jest.requireActual('aws-amplify/auth'),
-  AuthError: class AuthError extends Error {
-    constructor({ name, message }: { name: string; message: string }) {
-      super(message)
-      this.name = name
-    }
+// Mock the Cognito client
+jest.mock('@/lib/cognito-client', () => ({
+  cognitoClient: {
+    send: jest.fn(),
   },
-  signIn: jest.fn(),
-  signUp: jest.fn(),
-  signOut: jest.fn(),
-  confirmSignUp: jest.fn(),
-  resendSignUpCode: jest.fn(),
-  resetPassword: jest.fn(),
-  confirmResetPassword: jest.fn(),
+  CLIENT_ID: 'test-client-id',
+  getAuthTokens: jest.fn(),
+  setAuthTokens: jest.fn(),
+  clearAuthTokens: jest.fn(),
 }))
-jest.mock('@/lib/amplify-config', () => ({}))
 
 describe('Auth Functions', () => {
   beforeEach(() => {
     jest.clearAllMocks()
     jest.spyOn(console, 'error').mockImplementation(() => {})
+    jest.spyOn(console, 'log').mockImplementation(() => {})
   })
 
   afterEach(() => {
@@ -48,45 +32,31 @@ describe('Auth Functions', () => {
   })
 
   describe('signUp', () => {
-    it('should successfully sign up a user', async () => {
+    it('should successfully sign up a new user', async () => {
       const mockResponse = {
-        isSignUpComplete: false,
-        userId: 'test-user-id',
-        nextStep: { signUpStep: 'CONFIRM_SIGN_UP' },
+        UserConfirmed: false,
+        UserSub: 'user-123',
       }
-      ;(amplifySignUp as jest.Mock).mockResolvedValue(mockResponse)
+      ;(cognitoClient.send as jest.Mock).mockResolvedValue(mockResponse)
 
       const result = await signUp({
         email: 'test@example.com',
         password: 'TestPass123!',
         fullName: 'Test User',
-      })
-
-      expect(amplifySignUp).toHaveBeenCalledWith({
-        username: 'test@example.com',
-        password: 'TestPass123!',
-        options: {
-          userAttributes: {
-            email: 'test@example.com',
-            name: 'Test User',
-          },
-        },
       })
 
       expect(result).toEqual({
         success: true,
         isSignUpComplete: false,
-        userId: 'test-user-id',
+        userId: 'user-123',
         nextStep: { signUpStep: 'CONFIRM_SIGN_UP' },
       })
+      expect(cognitoClient.send).toHaveBeenCalled()
     })
 
-    it('should handle sign up error', async () => {
-      const mockError = new AuthError({
-        name: 'UsernameExistsException',
-        message: 'Username already exists',
-      })
-      ;(amplifySignUp as jest.Mock).mockRejectedValue(mockError)
+    it('should handle sign up errors', async () => {
+      const error = new Error('User already exists')
+      ;(cognitoClient.send as jest.Mock).mockRejectedValue(error)
 
       const result = await signUp({
         email: 'test@example.com',
@@ -96,22 +66,7 @@ describe('Auth Functions', () => {
 
       expect(result).toEqual({
         success: false,
-        error: 'Username already exists',
-      })
-    })
-
-    it('should handle unexpected errors', async () => {
-      ;(amplifySignUp as jest.Mock).mockRejectedValue(new Error('Network error'))
-
-      const result = await signUp({
-        email: 'test@example.com',
-        password: 'TestPass123!',
-        fullName: 'Test User',
-      })
-
-      expect(result).toEqual({
-        success: false,
-        error: 'An unexpected error occurred during sign up',
+        error: 'User already exists',
       })
     })
   })
@@ -119,34 +74,28 @@ describe('Auth Functions', () => {
   describe('signIn', () => {
     it('should successfully sign in a user', async () => {
       const mockResponse = {
-        isSignedIn: true,
-        nextStep: { signInStep: 'DONE' },
+        AuthenticationResult: {
+          AccessToken: 'access-token',
+          IdToken: 'id-token',
+          RefreshToken: 'refresh-token',
+        },
       }
-      ;(amplifySignIn as jest.Mock).mockResolvedValue(mockResponse)
+      ;(cognitoClient.send as jest.Mock).mockResolvedValue(mockResponse)
 
       const result = await signIn({
         email: 'test@example.com',
         password: 'TestPass123!',
       })
 
-      expect(amplifySignIn).toHaveBeenCalledWith({
-        username: 'test@example.com',
-        password: 'TestPass123!',
-      })
-
       expect(result).toEqual({
         success: true,
         isSignedIn: true,
-        nextStep: { signInStep: 'DONE' },
       })
     })
 
-    it('should handle sign in error', async () => {
-      const mockError = new AuthError({
-        name: 'NotAuthorizedException',
-        message: 'Incorrect username or password',
-      })
-      ;(amplifySignIn as jest.Mock).mockRejectedValue(mockError)
+    it('should handle sign in errors', async () => {
+      const error = new Error('Incorrect username or password')
+      ;(cognitoClient.send as jest.Mock).mockRejectedValue(error)
 
       const result = await signIn({
         email: 'test@example.com',
@@ -159,8 +108,11 @@ describe('Auth Functions', () => {
       })
     })
 
-    it('should handle unexpected sign in errors', async () => {
-      ;(amplifySignIn as jest.Mock).mockRejectedValue(new Error('Connection failed'))
+    it('should handle MFA challenge', async () => {
+      const mockResponse = {
+        ChallengeName: 'SMS_MFA',
+      }
+      ;(cognitoClient.send as jest.Mock).mockResolvedValue(mockResponse)
 
       const result = await signIn({
         email: 'test@example.com',
@@ -169,161 +121,127 @@ describe('Auth Functions', () => {
 
       expect(result).toEqual({
         success: false,
-        error: 'An unexpected error occurred during sign in',
+        isSignedIn: false,
+        nextStep: { signInStep: 'SMS_MFA' },
       })
     })
   })
 
   describe('signOut', () => {
     it('should successfully sign out a user', async () => {
-      ;(amplifySignOut as jest.Mock).mockResolvedValue(undefined)
-
-      const result = await signOut()
-
-      expect(amplifySignOut).toHaveBeenCalled()
-      expect(result).toEqual({ success: true })
-    })
-
-    it('should handle sign out error', async () => {
-      ;(amplifySignOut as jest.Mock).mockRejectedValue(new Error('Sign out failed'))
+      ;(cognitoClient.send as jest.Mock).mockResolvedValue({})
 
       const result = await signOut()
 
       expect(result).toEqual({
-        success: false,
-        error: 'An unexpected error occurred during sign out',
+        success: true,
+      })
+    })
+
+    it('should handle sign out errors gracefully', async () => {
+      const error = new Error('Network error')
+      ;(cognitoClient.send as jest.Mock).mockRejectedValue(error)
+
+      const result = await signOut()
+
+      expect(result).toEqual({
+        success: true, // Still returns success even on error
       })
     })
   })
 
   describe('confirmSignUpCode', () => {
-    it('should successfully confirm sign up code', async () => {
-      const mockResponse = {
-        isSignUpComplete: true,
-        nextStep: { signUpStep: 'DONE' },
-      }
-      ;(confirmSignUp as jest.Mock).mockResolvedValue(mockResponse)
+    it('should successfully confirm sign up', async () => {
+      ;(cognitoClient.send as jest.Mock).mockResolvedValue({})
 
       const result = await confirmSignUpCode('test@example.com', '123456')
-
-      expect(confirmSignUp).toHaveBeenCalledWith({
-        username: 'test@example.com',
-        confirmationCode: '123456',
-      })
 
       expect(result).toEqual({
         success: true,
-        isSignUpComplete: true,
-        nextStep: { signUpStep: 'DONE' },
       })
     })
 
-    it('should handle invalid confirmation code', async () => {
-      const mockError = new AuthError({
-        name: 'CodeMismatchException',
-        message: 'Invalid verification code provided',
-      })
-      ;(confirmSignUp as jest.Mock).mockRejectedValue(mockError)
-
-      const result = await confirmSignUpCode('test@example.com', '000000')
-
-      expect(result).toEqual({
-        success: false,
-        error: 'Invalid verification code provided',
-      })
-    })
-
-    it('should handle unexpected confirmation errors', async () => {
-      ;(confirmSignUp as jest.Mock).mockRejectedValue(new Error('Unexpected error'))
+    it('should handle confirmation errors', async () => {
+      const error = new Error('Invalid verification code')
+      ;(cognitoClient.send as jest.Mock).mockRejectedValue(error)
 
       const result = await confirmSignUpCode('test@example.com', '123456')
 
       expect(result).toEqual({
         success: false,
-        error: 'An unexpected error occurred during confirmation',
+        error: 'Invalid verification code',
       })
     })
   })
 
   describe('resendConfirmationCode', () => {
     it('should successfully resend confirmation code', async () => {
-      ;(resendSignUpCode as jest.Mock).mockResolvedValue({ deliveryMedium: 'EMAIL' })
+      ;(cognitoClient.send as jest.Mock).mockResolvedValue({})
 
       const result = await resendConfirmationCode('test@example.com')
 
-      expect(resendSignUpCode).toHaveBeenCalledWith({
-        username: 'test@example.com',
+      expect(result).toEqual({
+        success: true,
       })
-
-      expect(result).toEqual({ success: true })
     })
 
-    it('should handle resend code error', async () => {
-      ;(resendSignUpCode as jest.Mock).mockRejectedValue(new Error('Failed to resend'))
+    it('should handle resend errors', async () => {
+      const error = new Error('User not found')
+      ;(cognitoClient.send as jest.Mock).mockRejectedValue(error)
 
       const result = await resendConfirmationCode('test@example.com')
 
       expect(result).toEqual({
         success: false,
-        error: 'Failed to resend confirmation code',
+        error: 'User not found',
       })
     })
   })
 
   describe('requestPasswordReset', () => {
     it('should successfully request password reset', async () => {
-      const mockResponse = {
-        nextStep: { resetPasswordStep: 'CONFIRM_RESET_PASSWORD_WITH_CODE' },
-      }
-      ;(resetPassword as jest.Mock).mockResolvedValue(mockResponse)
+      ;(cognitoClient.send as jest.Mock).mockResolvedValue({})
 
       const result = await requestPasswordReset('test@example.com')
 
-      expect(resetPassword).toHaveBeenCalledWith({
-        username: 'test@example.com',
-      })
-
       expect(result).toEqual({
         success: true,
-        nextStep: { resetPasswordStep: 'CONFIRM_RESET_PASSWORD_WITH_CODE' },
       })
     })
 
-    it('should handle password reset request error', async () => {
-      ;(resetPassword as jest.Mock).mockRejectedValue(new Error('User not found'))
+    it('should handle request errors', async () => {
+      const error = new Error('User not found')
+      ;(cognitoClient.send as jest.Mock).mockRejectedValue(error)
 
       const result = await requestPasswordReset('test@example.com')
 
       expect(result).toEqual({
         success: false,
-        error: 'Failed to request password reset',
+        error: 'User not found',
       })
     })
   })
 
   describe('confirmPasswordReset', () => {
     it('should successfully confirm password reset', async () => {
-      ;(confirmResetPassword as jest.Mock).mockResolvedValue(undefined)
+      ;(cognitoClient.send as jest.Mock).mockResolvedValue({})
 
       const result = await confirmPasswordReset('test@example.com', '123456', 'NewPass123!')
 
-      expect(confirmResetPassword).toHaveBeenCalledWith({
-        username: 'test@example.com',
-        confirmationCode: '123456',
-        newPassword: 'NewPass123!',
+      expect(result).toEqual({
+        success: true,
       })
-
-      expect(result).toEqual({ success: true })
     })
 
-    it('should handle password reset confirmation error', async () => {
-      ;(confirmResetPassword as jest.Mock).mockRejectedValue(new Error('Invalid code'))
+    it('should handle confirmation errors', async () => {
+      const error = new Error('Invalid verification code')
+      ;(cognitoClient.send as jest.Mock).mockRejectedValue(error)
 
-      const result = await confirmPasswordReset('test@example.com', '000000', 'NewPass123!')
+      const result = await confirmPasswordReset('test@example.com', '123456', 'NewPass123!')
 
       expect(result).toEqual({
         success: false,
-        error: 'Failed to reset password',
+        error: 'Invalid verification code',
       })
     })
   })

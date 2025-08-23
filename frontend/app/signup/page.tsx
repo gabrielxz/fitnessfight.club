@@ -16,16 +16,23 @@ export default function SignUpPage() {
   const router = useRouter()
 
   async function handleSignUp(data: { email: string; password: string; fullName: string }) {
+    console.log('handleSignUp called with:', data)
     setLoading(true)
     setError(null)
 
-    const result = await signUp(data)
+    try {
+      const result = await signUp(data)
+      console.log('signUp result:', result)
 
-    if (result.success) {
-      setEmail(data.email)
-      setStep('confirm')
-    } else {
-      setError(result.error || 'Sign up failed')
+      if (result.success) {
+        setEmail(data.email)
+        setStep('confirm')
+      } else {
+        setError(result.error || 'Sign up failed')
+      }
+    } catch (err) {
+      console.error('Error in handleSignUp:', err)
+      setError('An unexpected error occurred')
     }
 
     setLoading(false)

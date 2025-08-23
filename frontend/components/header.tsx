@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { signOut } from '@/lib/auth'
-import { getCurrentUser } from 'aws-amplify/auth'
+import { getCurrentUser } from '@/lib/auth'
 import { LogOut, User } from 'lucide-react'
 
 export function Header() {
@@ -22,7 +22,7 @@ export function Header() {
       const currentUser = await getCurrentUser()
       setUser({
         username: currentUser.username,
-        email: currentUser.signInDetails?.loginId,
+        email: currentUser.email,
       })
     } catch {
       setUser(null)
