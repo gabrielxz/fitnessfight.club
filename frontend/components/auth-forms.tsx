@@ -36,9 +36,17 @@ export function SignUpForm({
       errors.email = 'Please enter a valid email address'
     }
 
-    // Validate password - only check length
+    // Validate password - check all requirements
     if (formData.password.length < 8) {
       errors.password = 'Password must be at least 8 characters'
+    } else if (
+      !(
+        /[a-z]/.test(formData.password) &&
+        /[A-Z]/.test(formData.password) &&
+        /[0-9]/.test(formData.password)
+      )
+    ) {
+      errors.password = 'Password must contain uppercase, lowercase, and numbers'
     }
 
     // Validate name
@@ -110,7 +118,9 @@ export function SignUpForm({
           onChange={(e) => setFormData({ ...formData, password: e.target.value })}
           disabled={loading}
         />
-        <p className="mt-1 text-xs text-gray-500">Must be at least 8 characters</p>
+        <p className="mt-1 text-xs text-gray-500">
+          Must be at least 8 characters with uppercase, lowercase, and numbers
+        </p>
       </div>
 
       {error && <div className="p-3 text-sm text-red-600 bg-red-50 rounded-md">{error}</div>}

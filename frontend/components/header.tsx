@@ -1,44 +1,20 @@
 'use client'
 
-import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { signOut } from '@/lib/auth'
-import { getCurrentUser } from '@/lib/auth'
+import { useAuth } from '@/components/auth-provider'
 import { LogOut, User } from 'lucide-react'
 
 export function Header() {
-  const [user, setUser] = useState<{ username: string; email?: string } | null>(null)
-  const [loading, setLoading] = useState(true)
+  const { user, loading, refreshUser } = useAuth()
   const router = useRouter()
-
-  useEffect(() => {
-    checkUser()
-  }, [])
-
-  async function checkUser() {
-    try {
-      const currentUser = await getCurrentUser()
-      if (currentUser) {
-        setUser({
-          username: currentUser.username,
-          email: currentUser.email,
-        })
-      } else {
-        setUser(null)
-      }
-    } catch {
-      setUser(null)
-    } finally {
-      setLoading(false)
-    }
-  }
 
   async function handleSignOut() {
     const result = await signOut()
     if (result.success) {
-      setUser(null)
+      await refreshUser()
       router.push('/')
       router.refresh()
     }

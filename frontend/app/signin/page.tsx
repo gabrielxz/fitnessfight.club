@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { SignInForm } from '@/components/auth-forms'
 import { signIn } from '@/lib/auth'
+import { useAuth } from '@/components/auth-provider'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,6 +15,7 @@ function SignInContent() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const router = useRouter()
   const searchParams = useSearchParams()
+  const { refreshUser } = useAuth()
 
   useEffect(() => {
     // Check if user just confirmed their email
@@ -34,6 +36,8 @@ function SignInContent() {
     const result = await signIn(data)
 
     if (result.success) {
+      // Refresh auth state before redirecting
+      await refreshUser()
       // Redirect to home page or return URL
       const returnUrl = searchParams?.get('returnUrl') || '/'
       router.push(returnUrl)

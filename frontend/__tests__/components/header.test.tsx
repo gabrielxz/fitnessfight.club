@@ -1,5 +1,6 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { Header } from '@/components/header'
+import { AuthProvider } from '@/components/auth-provider'
 import { signOut, getCurrentUser } from '@/lib/auth'
 import { useRouter } from 'next/navigation'
 
@@ -33,7 +34,11 @@ describe('Header Component', () => {
     })
 
     it('should render logo and title', async () => {
-      render(<Header />)
+      render(
+        <AuthProvider>
+          <Header />
+        </AuthProvider>
+      )
 
       await waitFor(() => {
         expect(screen.getByText('Fitness Fight Club')).toBeInTheDocument()
@@ -41,7 +46,11 @@ describe('Header Component', () => {
     })
 
     it('should show Sign In and Sign Up buttons when not authenticated', async () => {
-      render(<Header />)
+      render(
+        <AuthProvider>
+          <Header />
+        </AuthProvider>
+      )
 
       await waitFor(() => {
         expect(screen.getByText('Sign In')).toBeInTheDocument()
@@ -50,7 +59,11 @@ describe('Header Component', () => {
     })
 
     it('should not show navigation links when not authenticated', async () => {
-      render(<Header />)
+      render(
+        <AuthProvider>
+          <Header />
+        </AuthProvider>
+      )
 
       await waitFor(() => {
         expect(screen.queryByText('Dashboard')).not.toBeInTheDocument()
@@ -60,7 +73,11 @@ describe('Header Component', () => {
     })
 
     it('should not show user email or Sign Out button', async () => {
-      render(<Header />)
+      render(
+        <AuthProvider>
+          <Header />
+        </AuthProvider>
+      )
 
       await waitFor(() => {
         expect(screen.queryByText('Sign Out')).not.toBeInTheDocument()
@@ -81,7 +98,11 @@ describe('Header Component', () => {
     })
 
     it('should show navigation links when authenticated', async () => {
-      render(<Header />)
+      render(
+        <AuthProvider>
+          <Header />
+        </AuthProvider>
+      )
 
       await waitFor(() => {
         expect(screen.getByText('Dashboard')).toBeInTheDocument()
@@ -91,7 +112,11 @@ describe('Header Component', () => {
     })
 
     it('should show user email when authenticated', async () => {
-      render(<Header />)
+      render(
+        <AuthProvider>
+          <Header />
+        </AuthProvider>
+      )
 
       await waitFor(() => {
         expect(screen.getByText('test@example.com')).toBeInTheDocument()
@@ -99,7 +124,11 @@ describe('Header Component', () => {
     })
 
     it('should show Sign Out button when authenticated', async () => {
-      render(<Header />)
+      render(
+        <AuthProvider>
+          <Header />
+        </AuthProvider>
+      )
 
       await waitFor(() => {
         expect(screen.getByText('Sign Out')).toBeInTheDocument()
@@ -107,7 +136,11 @@ describe('Header Component', () => {
     })
 
     it('should not show Sign In and Sign Up buttons when authenticated', async () => {
-      render(<Header />)
+      render(
+        <AuthProvider>
+          <Header />
+        </AuthProvider>
+      )
 
       await waitFor(() => {
         expect(screen.queryByText('Sign In')).not.toBeInTheDocument()
@@ -118,7 +151,11 @@ describe('Header Component', () => {
     it('should handle sign out when Sign Out button is clicked', async () => {
       ;(signOut as jest.Mock).mockResolvedValue({ success: true })
 
-      render(<Header />)
+      render(
+        <AuthProvider>
+          <Header />
+        </AuthProvider>
+      )
 
       // Wait for the component to finish loading
       await waitFor(() => {
@@ -142,7 +179,11 @@ describe('Header Component', () => {
       })
       jest.spyOn(console, 'error').mockImplementation(() => {})
 
-      render(<Header />)
+      render(
+        <AuthProvider>
+          <Header />
+        </AuthProvider>
+      )
 
       // Wait for the component to finish loading
       await waitFor(() => {
@@ -168,7 +209,11 @@ describe('Header Component', () => {
     it('should show loading state initially', () => {
       ;(getCurrentUser as jest.Mock).mockImplementation(() => new Promise(() => {}))
 
-      const { container } = render(<Header />)
+      const { container } = render(
+        <AuthProvider>
+          <Header />
+        </AuthProvider>
+      )
 
       // Should show loading skeleton
       expect(container.querySelector('.animate-pulse')).toBeInTheDocument()
@@ -187,7 +232,11 @@ describe('Header Component', () => {
     })
 
     it('should render correct href for navigation links', async () => {
-      render(<Header />)
+      render(
+        <AuthProvider>
+          <Header />
+        </AuthProvider>
+      )
 
       await waitFor(() => {
         const dashboardLink = screen.getByText('Dashboard').closest('a')
@@ -203,7 +252,11 @@ describe('Header Component', () => {
     it('should render correct href for auth buttons', async () => {
       ;(getCurrentUser as jest.Mock).mockRejectedValue(new Error('Not authenticated'))
 
-      render(<Header />)
+      render(
+        <AuthProvider>
+          <Header />
+        </AuthProvider>
+      )
 
       await waitFor(() => {
         const signInLink = screen.getByText('Sign In').closest('a')
@@ -217,14 +270,22 @@ describe('Header Component', () => {
 
   describe('Responsive Behavior', () => {
     it('should have fixed positioning classes', () => {
-      render(<Header />)
+      render(
+        <AuthProvider>
+          <Header />
+        </AuthProvider>
+      )
 
       const header = screen.getByRole('banner')
       expect(header).toHaveClass('fixed', 'top-0', 'left-0', 'right-0', 'z-50')
     })
 
     it('should have proper styling classes', () => {
-      render(<Header />)
+      render(
+        <AuthProvider>
+          <Header />
+        </AuthProvider>
+      )
 
       const header = screen.getByRole('banner')
       expect(header).toHaveClass('border-b')
