@@ -19,7 +19,8 @@ These tags are automatically applied via CDK stack configuration for cost tracki
 - **Infrastructure**: AWS CDK v2, CloudFront, S3, Route 53
 - **Backend**: AWS Lambda (Node.js 20.x), API Gateway
 - **Database**: DynamoDB (3 tables: users, activities, challenges)
-- **Auth**: AWS Cognito with Hosted UI + Strava OAuth
+- **Auth**: AWS Cognito with custom authentication pages + Strava OAuth
+- **Auth Libraries**: AWS Amplify JS v6, @aws-amplify/adapter-nextjs
 - **Secrets**: AWS Secrets Manager (Strava OAuth credentials)
 - **CI/CD**: GitHub Actions
 - **Monorepo**: npm workspaces (frontend/ and infrastructure/)
@@ -45,7 +46,7 @@ These tags are automatically applied via CDK stack configuration for cost tracki
 
 - **Frontend**: https://d3ry0nlojppxzx.cloudfront.net
 - **API**: https://w0o2dsv2k8.execute-api.us-east-1.amazonaws.com/dev/
-- **Cognito Hosted UI**: https://fitnessfight-club-dev.auth.us-east-1.amazoncognito.com
+- **Cognito User Pool**: Configured for email/password authentication
 
 ### AWS Resources
 
@@ -64,6 +65,14 @@ These tags are automatically applied via CDK stack configuration for cost tracki
   - fitnessfight-club-strava-client-secret-dev
 
 ## Development Commands
+
+### Environment Setup
+
+```bash
+# Copy environment template and configure
+cp frontend/.env.local.example frontend/.env.local
+# Edit .env.local with your Cognito User Pool ID and Client ID from CDK outputs
+```
 
 ### Local Development
 
@@ -116,17 +125,29 @@ See `gitWorkflow.md` for detailed deployment process.
 fitnessfight.club/
 ├── frontend/                 # Next.js application
 │   ├── app/                 # App Router pages
+│   │   ├── signin/         # Sign-in page
+│   │   ├── signup/         # Sign-up page
+│   │   ├── forgot-password/ # Password reset initiation
+│   │   └── reset-password/  # Password reset completion
 │   ├── components/          # React components
+│   │   ├── header.tsx      # Navigation header with auth state
+│   │   ├── auth-provider.tsx # Authentication context provider
+│   │   └── auth-forms.tsx  # Reusable auth form components
 │   └── lib/                 # Utilities and helpers
+│       ├── auth.ts         # Client-side auth functions
+│       ├── auth-server.ts  # Server-side auth functions
+│       └── auth-errors.ts  # User-friendly error mapping
 ├── infrastructure/          # AWS CDK infrastructure
 │   ├── lib/                # Stack definitions
 │   │   ├── fitnessfight-stack.ts    # Main stack
 │   │   ├── auth-stack.ts            # Cognito setup
-│   │   ├── database-stack.ts        # DynamoDB tables
+│   │   ├── database-stack.ts        # DynamoDB tables with GSI
 │   │   └── api-stack.ts             # Lambda + API Gateway
 │   ├── lambda/             # Lambda function code
 │   │   └── api/
-│   │       └── index.js   # API handler
+│   │       ├── index.js    # API handler with JWT validation
+│   │       ├── auth.js     # JWT verification utilities
+│   │       └── rateLimit.js # Rate limiting middleware
 │   └── test/              # CDK tests
 └── .github/               # GitHub Actions workflows
     └── workflows/
@@ -134,16 +155,37 @@ fitnessfight.club/
         └── main.yml       # Prod deployment
 ```
 
+## Authentication System
+
+### AWS Cognito Authentication
+
+1. **Sign-up Flow**: Users register with email/password, receive verification code
+2. **Sign-in Flow**: Authenticated users receive JWT tokens stored in cookies
+3. **Password Reset**: Forgot password flow with email verification
+4. **Session Management**: Automatic token refresh before expiration
+5. **Auth State**: Header component displays user state (login/logout buttons)
+
+### Security Features
+
+- **Rate Limiting**:
+  - Sign-in: 5 attempts per 15 minutes
+  - Sign-up: 3 attempts per hour
+  - Password reset: 3 attempts per 30 minutes
+- **JWT Validation**: All API endpoints validate Cognito JWT tokens
+- **Encrypted State**: OAuth state parameters encrypted with AES-256-GCM
+- **Environment Validation**: Required environment variables validated at startup
+
 ## Strava OAuth Integration
 
-### OAuth Flow
+### OAuth Flow (Requires Cognito Authentication)
 
-1. User clicks "Connect with Strava" button on homepage
-2. Frontend calls `/api/v1/auth/strava` to get authorization URL
-3. User is redirected to Strava for authorization
-4. Strava redirects to `/api/v1/auth/strava/callback` with code
-5. Lambda exchanges code for tokens and saves user to DynamoDB
-6. User is redirected to homepage with success message
+1. User must be authenticated with Cognito first
+2. Authenticated user clicks "Connect with Strava" button on homepage
+3. Frontend calls `/api/v1/auth/strava` with JWT token to get authorization URL
+4. User is redirected to Strava for authorization
+5. Strava redirects to `/api/v1/auth/strava/callback` with code and encrypted state
+6. Lambda decrypts state to get cognitoId, exchanges code for tokens, links with Cognito user
+7. User is redirected to homepage with success message
 
 ### Token Management
 
@@ -158,11 +200,15 @@ fitnessfight.club/
 ```javascript
 {
   userId: "22415995",        // Primary key (Strava athlete ID as string)
+  cognitoId: "abc-123...",   // Cognito user ID (GSI for lookups)
   stravaId: "22415995",      // For GSI lookups
   athleteId: 22415995,       // Numeric athlete ID
   firstName: "Gabriel",
   lastName: "Beal",
   username: "bealg",
+  email: "user@example.com", // From Cognito
+  emailVerified: true,        // Email verification status
+  authProvider: "cognito-strava", // Auth method tracking
   accessToken: "xxx...",     // Encrypted at rest
   refreshToken: "xxx...",    // For token refresh
   expiresAt: 1755846374,     // Unix timestamp
@@ -213,11 +259,13 @@ fitnessfight.club/
 
 ### Implemented
 
-- `GET /api/v1/health` - Health check endpoint ✅
-- `GET /api/v1/auth/strava` - Initiate Strava OAuth flow ✅
+- `GET /api/v1/health` - Health check endpoint (no auth required) ✅
+- `GET /api/v1/auth/strava` - Initiate Strava OAuth flow (requires JWT) ✅
 - `GET /api/v1/auth/strava/callback` - Handle Strava OAuth callback ✅
-- `GET /api/v1/webhook/strava` - Handle Strava webhook verification ✅
-- `POST /api/v1/webhook/strava` - Receive Strava activity events ✅
+- `GET /api/v1/webhook/strava` - Handle Strava webhook verification (no auth) ✅
+- `POST /api/v1/webhook/strava` - Receive Strava activity events (no auth) ✅
+
+**Note**: All endpoints except health and webhook require valid Cognito JWT token in Authorization header
 
 ### To Be Implemented
 
@@ -231,20 +279,23 @@ fitnessfight.club/
 
 ### Completed ✅
 
-- ~~Strava OAuth integration~~ - Complete with token storage and auto-refresh
+- ~~AWS Cognito authentication~~ - Complete with sign-up, sign-in, email verification, password reset
+- ~~Strava OAuth integration~~ - Complete with token storage and auto-refresh, gated behind Cognito auth
 - ~~Domain fitnessfight.club configured in Route 53~~ - Both dev and prod domains working
 - ~~Environment variables stored in AWS Secrets Manager~~ - Strava credentials secured
 - ~~Webhook support for real-time Strava activity updates~~ - Automatically managed via GitHub Actions
+- ~~User registration/login flows with Cognito~~ - Custom auth pages with JWT validation
 
 ### To Do
 
 1. Implement remaining API endpoints for users, activities, and challenges
-2. Frontend buttons ("Get Started", "Learn More") need functionality beyond OAuth
+2. Frontend buttons ("Get Started", "Learn More") need functionality
 3. Add CloudWatch alarms for monitoring
-4. Add user registration/login flows with Cognito (in addition to Strava)
-5. Fetch and display Strava activities using stored tokens
-6. Implement challenge creation and leaderboard functionality
-7. Process webhook events to store activities in DynamoDB
+4. Fetch and display Strava activities using stored tokens
+5. Implement challenge creation and leaderboard functionality
+6. Process webhook events to store activities in DynamoDB
+7. Add user profile page with connected services management
+8. Implement team/club functionality
 
 ## Setup Requirements
 
@@ -260,7 +311,15 @@ fitnessfight.club/
 
 1. Deploy infrastructure: `cd infrastructure && npm run deploy -- --context environment=dev`
 2. Update Secrets Manager with Strava credentials (see above)
-3. Test OAuth flow at https://dev.fitnessfight.club
+3. Copy CDK output values to `frontend/.env.local`:
+   - User Pool ID
+   - User Pool Client ID
+   - API URL
+4. Test authentication flow at https://dev.fitnessfight.club:
+   - Sign up with email/password
+   - Verify email
+   - Sign in
+   - Connect Strava account
 
 ## Common Issues & Solutions
 
@@ -268,3 +327,6 @@ fitnessfight.club/
 - **CDK Deprecation warnings**: Use `pointInTimeRecoverySpecification` instead of `pointInTimeRecovery` for DynamoDB
 - **Conventional commits**: Removed - no longer enforced by Husky
 - **Strava OAuth errors**: Check callback domain configuration and ensure secrets are updated in AWS
+- **Cognito errors**: Ensure environment variables are set in `.env.local` from CDK outputs
+- **JWT validation failures**: Check that Authorization header includes "Bearer " prefix
+- **Rate limiting**: If locked out during testing, wait for timeout or restart Lambda function

@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { getConfig } from '@/lib/config'
+import { fetchAuthSession } from 'aws-amplify/auth'
 
 export function StravaConnectButton() {
   const [isLoading, setIsLoading] = useState(false)
@@ -14,8 +15,20 @@ export function StravaConnectButton() {
     try {
       const config = getConfig()
 
+      // Get the auth token
+      const session = await fetchAuthSession()
+      const token = session.tokens?.idToken?.toString()
+
+      if (!token) {
+        throw new Error('You must be signed in to connect Strava')
+      }
+
       // Fetch the authorization URL from our backend
-      const response = await fetch(`${config.apiUrl}/auth/strava`)
+      const response = await fetch(`${config.apiUrl}/auth/strava`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
 
       if (!response.ok) {
         throw new Error('Failed to get authorization URL')
@@ -26,6 +39,13 @@ export function StravaConnectButton() {
       // Debug logging
       if (data.debug) {
         console.error('OAuth Debug Info:', data.debug)
+      }
+
+      // Check if Strava is already connected
+      if (data.stravaConnected) {
+        setError('Your Strava account is already connected!')
+        setIsLoading(false)
+        return
       }
 
       // Redirect to Strava's OAuth page

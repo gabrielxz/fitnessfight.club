@@ -12,7 +12,10 @@
     "test": "jest --passWithNoTests"
   },
   "dependencies": {
+    "@aws-amplify/adapter-nextjs": "^1.6.8",
+    "@radix-ui/react-label": "^2.1.7",
     "@radix-ui/react-slot": "^1.2.3",
+    "aws-amplify": "^6.15.5",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^0.540.0",
