@@ -311,10 +311,18 @@ exports.handler = async (event) => {
 
   const { httpMethod, path, pathParameters, queryStringParameters, body, headers } = event
 
-  // Determine allowed origin based on environment
-  const allowedOrigin = process.env.ENVIRONMENT === 'prod' 
-    ? 'https://fitnessfight.club'
-    : 'https://dev.fitnessfight.club'
+  // Determine allowed origin based on environment and request origin
+  const requestOrigin = headers?.origin || headers?.Origin || ''
+  let allowedOrigin = 'https://dev.fitnessfight.club' // default for dev
+  
+  if (process.env.ENVIRONMENT === 'prod') {
+    // Allow both www and non-www for production
+    if (requestOrigin === 'https://www.fitnessfight.club') {
+      allowedOrigin = 'https://www.fitnessfight.club'
+    } else {
+      allowedOrigin = 'https://fitnessfight.club'
+    }
+  }
   
   // CORS headers
   const corsHeaders = {
@@ -322,6 +330,15 @@ exports.handler = async (event) => {
     'Access-Control-Allow-Headers': 'Content-Type,Authorization',
     'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
     'Access-Control-Allow-Credentials': 'true',
+  }
+
+  // Handle OPTIONS preflight requests for all endpoints
+  if (httpMethod === 'OPTIONS') {
+    return {
+      statusCode: 200,
+      headers: corsHeaders,
+      body: '',
+    }
   }
 
   // Handle health check
