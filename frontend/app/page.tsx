@@ -110,12 +110,12 @@ function HomeContent() {
             <div className="text-center space-y-4">
               <p className="text-muted-foreground">Please sign in to connect your Strava account</p>
               <div className="flex items-center justify-center space-x-4">
-                <Link href="/signin">
-                  <Button variant="outline">Sign In</Button>
-                </Link>
-                <Link href="/signup">
-                  <Button>Sign Up</Button>
-                </Link>
+                <Button variant="outline" asChild>
+                  <Link href="/signin">Sign In</Link>
+                </Button>
+                <Button asChild>
+                  <Link href="/signup">Sign Up</Link>
+                </Button>
               </div>
             </div>
           )}
