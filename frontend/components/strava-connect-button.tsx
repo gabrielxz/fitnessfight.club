@@ -1,12 +1,48 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { getConfig } from '@/lib/config'
 import { getAuthTokens } from '@/lib/cognito-client'
 
 export function StravaConnectButton() {
   const [isLoading, setIsLoading] = useState(false)
+  const [isConnected, setIsConnected] = useState(false)
+  const [checkingStatus, setCheckingStatus] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  // Check if Strava is already connected on mount
+  useEffect(() => {
+    checkStravaConnection()
+  }, [])
+
+  const checkStravaConnection = async () => {
+    try {
+      const config = getConfig()
+      const tokens = getAuthTokens()
+      const token = tokens.IdToken
+
+      if (!token) {
+        setCheckingStatus(false)
+        return
+      }
+
+      // Check connection status
+      const response = await fetch(`${config.apiUrl}/auth/strava`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setIsConnected(data.stravaConnected || false)
+      }
+    } catch (err) {
+      console.error('Error checking Strava connection:', err)
+    } finally {
+      setCheckingStatus(false)
+    }
+  }
 
   const handleConnect = async () => {
     setIsLoading(true)
@@ -43,7 +79,7 @@ export function StravaConnectButton() {
 
       // Check if Strava is already connected
       if (data.stravaConnected) {
-        setError('Your Strava account is already connected!')
+        setIsConnected(true)
         setIsLoading(false)
         return
       }
@@ -59,6 +95,28 @@ export function StravaConnectButton() {
       setError('Failed to connect to Strava. Please try again.')
       setIsLoading(false)
     }
+  }
+
+  if (checkingStatus) {
+    return (
+      <div className="flex items-center justify-center">
+        <div className="h-12 w-48 bg-muted animate-pulse rounded-md" />
+      </div>
+    )
+  }
+
+  if (isConnected) {
+    return (
+      <div className="flex flex-col items-center gap-4">
+        <div className="bg-green-100 text-green-800 border border-green-300 font-bold py-3 px-6 rounded-lg flex items-center gap-3">
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+          </svg>
+          <span>Strava Connected</span>
+        </div>
+        <p className="text-sm text-muted-foreground">Your activities are being tracked</p>
+      </div>
+    )
   }
 
   return (

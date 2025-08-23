@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button'
 
 function HomeContent() {
   const searchParams = useSearchParams()
-  const { user, loading: authLoading } = useAuth()
+  const { user, loading: authLoading, refreshUser } = useAuth()
   const [statusMessage, setStatusMessage] = useState<{
     type: 'success' | 'error'
     message: string
@@ -30,6 +30,9 @@ function HomeContent() {
       })
       // Clean URL after showing message
       window.history.replaceState({}, '', '/')
+
+      // Refresh auth state to ensure we're still logged in
+      refreshUser()
 
       // Auto-dismiss message after 5 seconds
       timer = setTimeout(() => {
