@@ -20,7 +20,7 @@ These tags are automatically applied via CDK stack configuration for cost tracki
 - **Backend**: AWS Lambda (Node.js 20.x), API Gateway
 - **Database**: DynamoDB (3 tables: users, activities, challenges)
 - **Auth**: AWS Cognito with custom authentication pages + Strava OAuth
-- **Auth Libraries**: AWS Amplify JS v6, @aws-amplify/adapter-nextjs
+- **Auth Libraries**: AWS SDK v3 (@aws-sdk/client-cognito-identity-provider)
 - **Secrets**: AWS Secrets Manager (Strava OAuth credentials)
 - **CI/CD**: GitHub Actions
 - **Monorepo**: npm workspaces (frontend/ and infrastructure/)
@@ -44,8 +44,8 @@ These tags are automatically applied via CDK stack configuration for cost tracki
 
 ### Current Deployment URLs (Dev)
 
-- **Frontend**: https://d3ry0nlojppxzx.cloudfront.net
-- **API**: https://w0o2dsv2k8.execute-api.us-east-1.amazonaws.com/dev/
+- **Frontend**: https://dev.fitnessfight.club (CloudFront: d3ry0nlojppxzx.cloudfront.net)
+- **API**: https://api.dev.fitnessfight.club
 - **Cognito User Pool**: Configured for email/password authentication
 
 ### AWS Resources
@@ -129,26 +129,31 @@ fitnessfight.club/
 │   │   ├── signup/         # Sign-up page
 │   │   ├── forgot-password/ # Password reset initiation
 │   │   └── reset-password/  # Password reset completion
-│   ├── components/          # React components
+│   │   ├── components/          # React components
 │   │   ├── header.tsx      # Navigation header with auth state
 │   │   ├── auth-provider.tsx # Authentication context provider
-│   │   └── auth-forms.tsx  # Reusable auth form components
+│   │   ├── auth-forms.tsx  # Reusable auth form components
+│   │   └── strava-connect-button.tsx # Strava OAuth connection button
 │   └── lib/                 # Utilities and helpers
-│       ├── auth.ts         # Client-side auth functions
-│       ├── auth-server.ts  # Server-side auth functions
-│       └── auth-errors.ts  # User-friendly error mapping
+│       ├── auth.ts         # Client-side auth functions using AWS SDK
+│       ├── cognito-client.ts # Cognito client configuration and token management
+│       ├── auth-errors.ts  # User-friendly error mapping
+│       └── config.ts       # Environment configuration
 ├── infrastructure/          # AWS CDK infrastructure
 │   ├── lib/                # Stack definitions
 │   │   ├── fitnessfight-stack.ts    # Main stack
 │   │   ├── auth-stack.ts            # Cognito setup
+│   │   ├── certificate-stack.ts     # ACM certificate for custom domains
 │   │   ├── database-stack.ts        # DynamoDB tables with GSI
-│   │   └── api-stack.ts             # Lambda + API Gateway
+│   │   └── api-stack.ts             # Lambda + API Gateway with NodejsFunction
 │   ├── lambda/             # Lambda function code
 │   │   └── api/
 │   │       ├── index.js    # API handler with JWT validation
 │   │       ├── auth.js     # JWT verification utilities
-│   │       └── rateLimit.js # Rate limiting middleware
-│   └── test/              # CDK tests
+│   │       ├── rateLimit.js # Rate limiting middleware
+│   │       └── package.json # Lambda dependencies (bundled with NodejsFunction)
+│   ├── test/              # CDK tests
+│   └── bin/               # CDK app entry point
 └── .github/               # GitHub Actions workflows
     └── workflows/
         ├── develop.yml    # Dev deployment
@@ -160,10 +165,11 @@ fitnessfight.club/
 ### AWS Cognito Authentication
 
 1. **Sign-up Flow**: Users register with email/password, receive verification code
-2. **Sign-in Flow**: Authenticated users receive JWT tokens stored in cookies
+2. **Sign-in Flow**: Authenticated users receive JWT tokens stored in localStorage
 3. **Password Reset**: Forgot password flow with email verification
-4. **Session Management**: Automatic token refresh before expiration
-5. **Auth State**: Header component displays user state (login/logout buttons)
+4. **Password Requirements**: Minimum 8 characters with uppercase, lowercase, and numbers
+5. **Session Management**: Automatic token refresh before expiration
+6. **Auth State**: Header component displays user state (login/logout buttons)
 
 ### Security Features
 
@@ -285,6 +291,8 @@ fitnessfight.club/
 - ~~Environment variables stored in AWS Secrets Manager~~ - Strava credentials secured
 - ~~Webhook support for real-time Strava activity updates~~ - Automatically managed via GitHub Actions
 - ~~User registration/login flows with Cognito~~ - Custom auth pages with JWT validation
+- ~~Strava connection status display~~ - Shows "Strava Connected" when linked
+- ~~Auth state persistence~~ - Tokens stored in localStorage survive page redirects
 
 ### To Do
 
@@ -296,6 +304,8 @@ fitnessfight.club/
 6. Process webhook events to store activities in DynamoDB
 7. Add user profile page with connected services management
 8. Implement team/club functionality
+9. Add proper error handling and user feedback for API failures
+10. Implement token refresh logic before expiration
 
 ## Setup Requirements
 
@@ -328,5 +338,8 @@ fitnessfight.club/
 - **Conventional commits**: Removed - no longer enforced by Husky
 - **Strava OAuth errors**: Check callback domain configuration and ensure secrets are updated in AWS
 - **Cognito errors**: Ensure environment variables are set in `.env.local` from CDK outputs
+- **Auth state lost after redirect**: Tokens are now stored in localStorage (fixed)
+- **Lambda missing dependencies**: Use NodejsFunction for automatic bundling
+- **CORS errors**: Lambda returns specific origin headers, not wildcards
 - **JWT validation failures**: Check that Authorization header includes "Bearer " prefix
 - **Rate limiting**: If locked out during testing, wait for timeout or restart Lambda function
