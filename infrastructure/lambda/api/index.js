@@ -203,11 +203,17 @@ exports.handler = async (event) => {
 
   const { httpMethod, path, pathParameters, queryStringParameters, body, headers } = event
 
+  // Determine allowed origin based on environment
+  const allowedOrigin = process.env.ENVIRONMENT === 'prod' 
+    ? 'https://fitnessfight.club'
+    : 'https://dev.fitnessfight.club'
+  
   // CORS headers
   const corsHeaders = {
-    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Origin': allowedOrigin,
     'Access-Control-Allow-Headers': 'Content-Type,Authorization',
     'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
+    'Access-Control-Allow-Credentials': 'true',
   }
 
   // Handle health check
