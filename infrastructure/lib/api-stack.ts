@@ -176,6 +176,10 @@ export class ApiStack extends Construct {
     const userById = users.addResource('{userId}')
     userById.addMethod('GET', integration, { authorizer }) // Get specific user
 
+    // Weekly stats endpoint
+    const weeklyStats = userById.addResource('weekly-stats')
+    weeklyStats.addMethod('GET', integration, { authorizer }) // Get user's weekly stats
+
     // Activities endpoints
     const activities = v1.addResource('activities')
     activities.addMethod('GET', integration, { authorizer }) // Get activities
