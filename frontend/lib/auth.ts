@@ -2,14 +2,12 @@ import {
   SignUpCommand,
   ConfirmSignUpCommand,
   InitiateAuthCommand,
-  RespondToAuthChallengeCommand,
   ForgotPasswordCommand,
   ConfirmForgotPasswordCommand,
   GlobalSignOutCommand,
   GetUserCommand,
   ResendConfirmationCodeCommand,
   AuthFlowType,
-  ChallengeNameType,
 } from '@aws-sdk/client-cognito-identity-provider'
 import {
   cognitoClient,
@@ -45,7 +43,6 @@ export async function signUp({ email, password, fullName }: SignUpParams): Promi
   nextStep?: { signUpStep: string }
   error?: string
 }> {
-  console.log('signUp function called with:', { email, fullName, password: '***' })
   try {
     const command = new SignUpCommand({
       ClientId: CLIENT_ID,
@@ -64,7 +61,6 @@ export async function signUp({ email, password, fullName }: SignUpParams): Promi
     })
 
     const response = await cognitoClient.send(command)
-    console.log('Cognito signUp success:', response)
 
     return {
       success: true,
@@ -72,11 +68,13 @@ export async function signUp({ email, password, fullName }: SignUpParams): Promi
       userId: response.UserSub,
       nextStep: response.UserConfirmed ? undefined : { signUpStep: 'CONFIRM_SIGN_UP' },
     }
-  } catch (error: any) {
-    console.error('Sign up error:', error)
+  } catch (error) {
+    const errorMessage =
+      error instanceof Error ? error.message : 'An unexpected error occurred during sign up'
+    console.error('Sign up error:', errorMessage)
     return {
       success: false,
-      error: error.message || 'An unexpected error occurred during sign up',
+      error: errorMessage,
     }
   }
 }
@@ -126,11 +124,12 @@ export async function signIn({ email, password }: SignInParams): Promise<{
       success: false,
       error: 'Sign in failed',
     }
-  } catch (error: any) {
-    console.error('Sign in error:', error)
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Invalid email or password'
+    console.error('Sign in error:', errorMessage)
     return {
       success: false,
-      error: error.message || 'Invalid email or password',
+      error: errorMessage,
     }
   }
 }
@@ -149,8 +148,8 @@ export async function signOut(): Promise<{
     }
     clearAuthTokens()
     return { success: true }
-  } catch (error: any) {
-    console.error('Sign out error:', error)
+  } catch (error) {
+    console.error('Sign out error:', error instanceof Error ? error.message : error)
     // Clear tokens even if sign out fails
     clearAuthTokens()
     return { success: true }
@@ -173,11 +172,13 @@ export async function confirmSignUpCode(
 
     await cognitoClient.send(command)
     return { success: true }
-  } catch (error: any) {
-    console.error('Confirm sign up error:', error)
+  } catch (error) {
+    const errorMessage =
+      error instanceof Error ? error.message : 'Invalid or expired confirmation code'
+    console.error('Confirm sign up error:', errorMessage)
     return {
       success: false,
-      error: error.message || 'Invalid or expired confirmation code',
+      error: errorMessage,
     }
   }
 }
@@ -194,11 +195,13 @@ export async function resendConfirmationCode(email: string): Promise<{
 
     await cognitoClient.send(command)
     return { success: true }
-  } catch (error: any) {
-    console.error('Resend confirmation code error:', error)
+  } catch (error) {
+    const errorMessage =
+      error instanceof Error ? error.message : 'Failed to resend confirmation code'
+    console.error('Resend confirmation code error:', errorMessage)
     return {
       success: false,
-      error: error.message || 'Failed to resend confirmation code',
+      error: errorMessage,
     }
   }
 }
@@ -215,11 +218,12 @@ export async function requestPasswordReset(email: string): Promise<{
 
     await cognitoClient.send(command)
     return { success: true }
-  } catch (error: any) {
-    console.error('Request password reset error:', error)
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Failed to request password reset'
+    console.error('Request password reset error:', errorMessage)
     return {
       success: false,
-      error: error.message || 'Failed to request password reset',
+      error: errorMessage,
     }
   }
 }
@@ -242,11 +246,12 @@ export async function confirmPasswordReset(
 
     await cognitoClient.send(command)
     return { success: true }
-  } catch (error: any) {
-    console.error('Confirm password reset error:', error)
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Failed to reset password'
+    console.error('Confirm password reset error:', errorMessage)
     return {
       success: false,
-      error: error.message || 'Failed to reset password',
+      error: errorMessage,
     }
   }
 }

@@ -16,13 +16,11 @@ export default function SignUpPage() {
   const router = useRouter()
 
   async function handleSignUp(data: { email: string; password: string; fullName: string }) {
-    console.log('handleSignUp called with:', data)
     setLoading(true)
     setError(null)
 
     try {
       const result = await signUp(data)
-      console.log('signUp result:', result)
 
       if (result.success) {
         setEmail(data.email)

@@ -1,17 +1,4 @@
-import {
-  CognitoIdentityProviderClient,
-  SignUpCommand,
-  ConfirmSignUpCommand,
-  InitiateAuthCommand,
-  RespondToAuthChallengeCommand,
-  ForgotPasswordCommand,
-  ConfirmForgotPasswordCommand,
-  GlobalSignOutCommand,
-  GetUserCommand,
-  ResendConfirmationCodeCommand,
-  AuthFlowType,
-  ChallengeNameType,
-} from '@aws-sdk/client-cognito-identity-provider'
+import { CognitoIdentityProviderClient } from '@aws-sdk/client-cognito-identity-provider'
 
 const REGION = 'us-east-1'
 const USER_POOL_ID = process.env.NEXT_PUBLIC_USER_POOL_ID
