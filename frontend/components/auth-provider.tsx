@@ -17,16 +17,12 @@ interface AuthUser {
   cognitoId: string
 }
 
-const AuthContext = createContext<AuthContextType>({
-  user: null,
-  loading: true,
-  refreshUser: async () => {},
-})
+const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function useAuth() {
   const context = useContext(AuthContext)
-  if (!context) {
-    throw new Error('useAuth must be used within AuthProvider')
+  if (context === undefined) {
+    throw new Error('useAuth must be used within an AuthProvider')
   }
   return context
 }

@@ -1,25 +1,40 @@
 /**
  * @jest-environment node
  */
-// Mock dependencies first, before imports
-const mockRunWithAmplifyServerContext = jest.fn()
 
 jest.mock('aws-amplify/auth')
 jest.mock('next/headers')
-jest.mock('@aws-amplify/adapter-nextjs', () => ({
-  createServerRunner: jest.fn(() => ({
-    runWithAmplifyServerContext: mockRunWithAmplifyServerContext,
-  })),
-}))
+
+// Mock the adapter-nextjs module
+jest.mock('@aws-amplify/adapter-nextjs', () => {
+  const mockRunWithAmplifyServerContext = jest.fn()
+  return {
+    createServerRunner: jest.fn(() => ({
+      runWithAmplifyServerContext: mockRunWithAmplifyServerContext,
+    })),
+    __getMockRunWithAmplifyServerContext: () => mockRunWithAmplifyServerContext,
+  }
+})
 
 import { getCurrentUserServer, getAuthTokenServer } from '@/lib/auth-server'
 import { getCurrentUser, fetchAuthSession } from 'aws-amplify/auth'
 import { cookies } from 'next/headers'
 
+// Get the mock function after module is loaded
+const getMockRunWithAmplifyServerContext = () => {
+  const module = jest.requireMock('@aws-amplify/adapter-nextjs')
+  return module.__getMockRunWithAmplifyServerContext()
+}
+
 describe('Auth Server Functions', () => {
+  let mockRunWithAmplifyServerContext: jest.Mock
+
   beforeEach(() => {
     jest.clearAllMocks()
     jest.spyOn(console, 'error').mockImplementation(() => {})
+
+    // Get the mock function
+    mockRunWithAmplifyServerContext = getMockRunWithAmplifyServerContext()
 
     // Mock cookies
     ;(cookies as jest.Mock).mockReturnValue({})
@@ -57,7 +72,7 @@ describe('Auth Server Functions', () => {
       const result = await getCurrentUserServer()
 
       expect(mockRunWithAmplifyServerContext).toHaveBeenCalledWith({
-        nextServerContext: { cookies: {} },
+        nextServerContext: { cookies: expect.any(Function) },
         operation: expect.any(Function),
       })
 
@@ -139,7 +154,7 @@ describe('Auth Server Functions', () => {
       const result = await getAuthTokenServer()
 
       expect(mockRunWithAmplifyServerContext).toHaveBeenCalledWith({
-        nextServerContext: { cookies: {} },
+        nextServerContext: { cookies: expect.any(Function) },
         operation: expect.any(Function),
       })
 

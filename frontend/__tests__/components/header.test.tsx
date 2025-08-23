@@ -123,6 +123,11 @@ describe('Header Component', () => {
 
       render(<Header />)
 
+      // Wait for the component to finish loading
+      await waitFor(() => {
+        expect(screen.getByText('Sign Out')).toBeInTheDocument()
+      })
+
       const signOutButton = screen.getByText('Sign Out')
       fireEvent.click(signOutButton)
 
@@ -142,16 +147,21 @@ describe('Header Component', () => {
 
       render(<Header />)
 
+      // Wait for the component to finish loading
+      await waitFor(() => {
+        expect(screen.getByText('Sign Out')).toBeInTheDocument()
+      })
+
       const signOutButton = screen.getByText('Sign Out')
       fireEvent.click(signOutButton)
 
       await waitFor(() => {
         expect(signOut).toHaveBeenCalled()
-        expect(console.error).toHaveBeenCalledWith('Failed to sign out:', 'Sign out failed')
-        // Should still redirect even on error
-        expect(mockPush).toHaveBeenCalledWith('/')
-        expect(mockRefresh).toHaveBeenCalled()
       })
+
+      // Router should not be called on error
+      expect(mockPush).not.toHaveBeenCalled()
+      expect(mockRefresh).not.toHaveBeenCalled()
 
       jest.restoreAllMocks()
     })

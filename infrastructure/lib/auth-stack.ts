@@ -38,6 +38,9 @@ export class AuthStack extends Construct {
         },
       },
       customAttributes: {
+        stravaId: new cognito.StringAttribute({
+          mutable: true,
+        }),
         clubMember: new cognito.BooleanAttribute({
           mutable: true,
         }),
