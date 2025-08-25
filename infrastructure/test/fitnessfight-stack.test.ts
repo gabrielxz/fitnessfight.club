@@ -137,4 +137,286 @@ describe('FitnessFightStack', () => {
       Name: 'fitnessfight-club-api-dev',
     })
   })
+
+  test('Stack creates Google identity provider for Cognito', () => {
+    const app = new cdk.App()
+    const stack = new FitnessFightStack(app, 'TestStack', {
+      environment: 'dev',
+    })
+
+    const template = Template.fromStack(stack)
+
+    // Check that Google identity provider is created
+    template.hasResourceProperties('AWS::Cognito::UserPoolIdentityProvider', {
+      ProviderType: 'Google',
+      AttributeMapping: Match.objectLike({
+        email: 'email',
+        given_name: 'given_name',
+        family_name: 'family_name',
+        picture: 'picture',
+      }),
+    })
+
+    // Check that User Pool Client includes Google as supported identity provider
+    template.hasResourceProperties('AWS::Cognito::UserPoolClient', {
+      SupportedIdentityProviders: Match.arrayWith(['COGNITO', 'Google']),
+    })
+
+    // Check that Google Client Secret is created in Secrets Manager
+    template.hasResourceProperties('AWS::SecretsManager::Secret', {
+      Name: 'fitnessfight-club-google-client-secret-dev',
+      Description: 'Google OAuth Client Secret for dev environment',
+    })
+  })
+
+  test('Google identity provider has correct OAuth scopes configured', () => {
+    const app = new cdk.App()
+    const stack = new FitnessFightStack(app, 'TestStack', {
+      environment: 'dev',
+    })
+
+    const template = Template.fromStack(stack)
+
+    // Check that Google identity provider has correct scopes
+    template.hasResourceProperties('AWS::Cognito::UserPoolIdentityProvider', {
+      ProviderType: 'Google',
+      ProviderDetails: Match.objectLike({
+        authorize_scopes: 'profile email openid',
+      }),
+    })
+  })
+
+  test('Google identity provider uses placeholder client ID initially', () => {
+    const app = new cdk.App()
+    const stack = new FitnessFightStack(app, 'TestStack', {
+      environment: 'dev',
+    })
+
+    const template = Template.fromStack(stack)
+
+    // Check that the placeholder client ID is used (will be replaced post-deployment)
+    template.hasResourceProperties('AWS::Cognito::UserPoolIdentityProvider', {
+      ProviderType: 'Google',
+      ProviderDetails: Match.objectLike({
+        client_id: 'PLACEHOLDER_GOOGLE_CLIENT_ID',
+      }),
+    })
+  })
+
+  test('Google Client Secret uses Secrets Manager reference', () => {
+    const app = new cdk.App()
+    const stack = new FitnessFightStack(app, 'TestStack', {
+      environment: 'dev',
+    })
+
+    const template = Template.fromStack(stack)
+
+    // Check that the client secret references Secrets Manager
+    template.hasResourceProperties('AWS::Cognito::UserPoolIdentityProvider', {
+      ProviderType: 'Google',
+      ProviderDetails: Match.objectLike({
+        client_secret: Match.anyValue(),
+      }),
+    })
+
+    // Verify the secret exists in Secrets Manager
+    template.hasResource('AWS::SecretsManager::Secret', {
+      Properties: {
+        Name: 'fitnessfight-club-google-client-secret-dev',
+        Description: 'Google OAuth Client Secret for dev environment',
+      },
+    })
+  })
+
+  test('Production environment creates Google provider with prod-specific secret', () => {
+    const app = new cdk.App()
+    const stack = new FitnessFightStack(app, 'TestStack', {
+      environment: 'prod',
+    })
+
+    const template = Template.fromStack(stack)
+
+    // Check that production uses prod-specific secret name
+    template.hasResourceProperties('AWS::SecretsManager::Secret', {
+      Name: 'fitnessfight-club-google-client-secret-prod',
+      Description: 'Google OAuth Client Secret for prod environment',
+    })
+
+    // Verify Google provider exists in production
+    template.hasResourceProperties('AWS::Cognito::UserPoolIdentityProvider', {
+      ProviderType: 'Google',
+    })
+  })
+
+  test('Google provider has dependency relationship with UserPoolClient', () => {
+    const app = new cdk.App()
+    const stack = new FitnessFightStack(app, 'TestStack', {
+      environment: 'dev',
+    })
+
+    const template = Template.fromStack(stack)
+
+    // Find the UserPoolClient resource
+    const resources = template.toJSON().Resources
+    let userPoolClientLogicalId = ''
+
+    for (const [logicalId, resource] of Object.entries(resources)) {
+      if ((resource as any).Type === 'AWS::Cognito::UserPoolClient') {
+        userPoolClientLogicalId = logicalId
+        break
+      }
+    }
+
+    // Verify the UserPoolClient has a dependency on the Google provider
+    expect(userPoolClientLogicalId).not.toBe('')
+    const userPoolClient = resources[userPoolClientLogicalId] as any
+    expect(userPoolClient.DependsOn).toBeDefined()
+
+    // The dependency should include the Google provider
+    const dependencies = Array.isArray(userPoolClient.DependsOn)
+      ? userPoolClient.DependsOn
+      : [userPoolClient.DependsOn]
+
+    const hasGoogleProviderDependency = dependencies.some((dep: string) =>
+      dep.includes('GoogleProvider')
+    )
+    expect(hasGoogleProviderDependency).toBe(true)
+  })
+
+  test('Google provider attribute mapping includes all required attributes', () => {
+    const app = new cdk.App()
+    const stack = new FitnessFightStack(app, 'TestStack', {
+      environment: 'dev',
+    })
+
+    const template = Template.fromStack(stack)
+
+    // Verify all required attributes are mapped
+    template.hasResourceProperties('AWS::Cognito::UserPoolIdentityProvider', {
+      ProviderType: 'Google',
+      AttributeMapping: {
+        email: 'email',
+        given_name: 'given_name',
+        family_name: 'family_name',
+        picture: 'picture',
+      },
+    })
+  })
+
+  test('UserPool OAuth configuration supports Google provider', () => {
+    const app = new cdk.App()
+    const stack = new FitnessFightStack(app, 'TestStack', {
+      environment: 'dev',
+    })
+
+    const template = Template.fromStack(stack)
+
+    // Verify UserPoolClient OAuth settings are properly configured for Google
+    template.hasResourceProperties('AWS::Cognito::UserPoolClient', {
+      AllowedOAuthFlows: Match.arrayWith(['implicit', 'code']),
+      AllowedOAuthScopes: Match.arrayWith(['email', 'openid', 'profile']),
+      AllowedOAuthFlowsUserPoolClient: true,
+    })
+  })
+
+  test('Stack outputs include Google Provider Name', () => {
+    const app = new cdk.App()
+    const stack = new FitnessFightStack(app, 'TestStack', {
+      environment: 'dev',
+    })
+
+    const template = Template.fromStack(stack)
+
+    // Check that Google Provider Name is included in outputs
+    const outputs = template.toJSON().Outputs
+    let hasGoogleProviderOutput = false
+
+    for (const output of Object.values(outputs || {})) {
+      if ((output as any).Description === 'Google Identity Provider Name') {
+        hasGoogleProviderOutput = true
+        break
+      }
+    }
+
+    expect(hasGoogleProviderOutput).toBe(true)
+  })
+
+  test('Google Client Secret has proper removal policy for dev environment', () => {
+    const app = new cdk.App()
+    const stack = new FitnessFightStack(app, 'TestStack', {
+      environment: 'dev',
+    })
+
+    const template = Template.fromStack(stack)
+
+    // Find the Google Client Secret resource
+    const resources = template.toJSON().Resources
+    let secretResource: any = null
+
+    for (const resource of Object.values(resources)) {
+      if (
+        (resource as any).Type === 'AWS::SecretsManager::Secret' &&
+        (resource as any).Properties?.Name === 'fitnessfight-club-google-client-secret-dev'
+      ) {
+        secretResource = resource
+        break
+      }
+    }
+
+    expect(secretResource).not.toBeNull()
+    // Dev environment should have Delete policy
+    expect(secretResource.UpdateReplacePolicy).toBe('Delete')
+    expect(secretResource.DeletionPolicy).toBe('Delete')
+  })
+
+  test('Google provider is configured with correct provider name', () => {
+    const app = new cdk.App()
+    const stack = new FitnessFightStack(app, 'TestStack', {
+      environment: 'dev',
+    })
+
+    const template = Template.fromStack(stack)
+
+    // Check the provider name follows CDK conventions
+    template.hasResourceProperties('AWS::Cognito::UserPoolIdentityProvider', {
+      ProviderType: 'Google',
+      ProviderName: Match.anyValue(), // CDK auto-generates this
+    })
+  })
+
+  test('User Pool Client callback URLs are configured for OAuth flows', () => {
+    const app = new cdk.App()
+    const stack = new FitnessFightStack(app, 'TestStack', {
+      environment: 'dev',
+    })
+
+    const template = Template.fromStack(stack)
+
+    // Verify callback URLs include the required OAuth endpoints
+    template.hasResourceProperties('AWS::Cognito::UserPoolClient', {
+      CallbackURLs: Match.arrayWith([
+        'https://dev.fitnessfight.club/api/auth/callback',
+        'https://dev.fitnessfight.club/signin',
+        'https://dev.fitnessfight.club/signup',
+      ]),
+    })
+  })
+
+  test('Production User Pool Client callback URLs use production domain', () => {
+    const app = new cdk.App()
+    const stack = new FitnessFightStack(app, 'TestStack', {
+      environment: 'prod',
+    })
+
+    const template = Template.fromStack(stack)
+
+    // Verify callback URLs use production domain
+    template.hasResourceProperties('AWS::Cognito::UserPoolClient', {
+      CallbackURLs: Match.arrayWith([
+        'https://fitnessfight.club/api/auth/callback',
+        'https://fitnessfight.club/signin',
+        'https://fitnessfight.club/signup',
+      ]),
+    })
+  })
 })
