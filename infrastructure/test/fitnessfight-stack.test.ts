@@ -138,7 +138,7 @@ describe('FitnessFightStack', () => {
     })
   })
 
-  test.skip('Stack creates Google identity provider for Cognito', () => {
+  test('Stack creates Google identity provider for Cognito', () => {
     const app = new cdk.App()
     const stack = new FitnessFightStack(app, 'TestStack', {
       environment: 'dev',
@@ -152,6 +152,9 @@ describe('FitnessFightStack', () => {
       AttributeMapping: Match.objectLike({
         email: 'email',
         picture: 'picture',
+        given_name: 'given_name',
+        family_name: 'family_name',
+        'custom:fullname': 'name',
       }),
     })
 
@@ -167,7 +170,7 @@ describe('FitnessFightStack', () => {
     })
   })
 
-  test.skip('Google identity provider has correct OAuth scopes configured', () => {
+  test('Google identity provider has correct OAuth scopes configured', () => {
     const app = new cdk.App()
     const stack = new FitnessFightStack(app, 'TestStack', {
       environment: 'dev',
@@ -184,7 +187,7 @@ describe('FitnessFightStack', () => {
     })
   })
 
-  test.skip('Google identity provider uses configured client ID', () => {
+  test('Google identity provider uses configured client ID', () => {
     const app = new cdk.App()
     const stack = new FitnessFightStack(app, 'TestStack', {
       environment: 'dev',
@@ -201,7 +204,7 @@ describe('FitnessFightStack', () => {
     })
   })
 
-  test.skip('Google Client Secret uses Secrets Manager reference', () => {
+  test('Google Client Secret uses Secrets Manager reference', () => {
     const app = new cdk.App()
     const stack = new FitnessFightStack(app, 'TestStack', {
       environment: 'dev',
@@ -226,7 +229,7 @@ describe('FitnessFightStack', () => {
     })
   })
 
-  test.skip('Production environment creates Google provider with prod-specific secret', () => {
+  test('Production environment creates Google provider with prod-specific secret', () => {
     const app = new cdk.App()
     const stack = new FitnessFightStack(app, 'TestStack', {
       environment: 'prod',
@@ -246,7 +249,7 @@ describe('FitnessFightStack', () => {
     })
   })
 
-  test.skip('Google provider has dependency relationship with UserPoolClient', () => {
+  test('Google provider has dependency relationship with UserPoolClient', () => {
     const app = new cdk.App()
     const stack = new FitnessFightStack(app, 'TestStack', {
       environment: 'dev',
@@ -281,7 +284,7 @@ describe('FitnessFightStack', () => {
     expect(hasGoogleProviderDependency).toBe(true)
   })
 
-  test.skip('Google provider attribute mapping includes all required attributes', () => {
+  test('Google provider attribute mapping includes all required attributes', () => {
     const app = new cdk.App()
     const stack = new FitnessFightStack(app, 'TestStack', {
       environment: 'dev',
@@ -295,11 +298,14 @@ describe('FitnessFightStack', () => {
       AttributeMapping: {
         email: 'email',
         picture: 'picture',
+        given_name: 'given_name',
+        family_name: 'family_name',
+        'custom:fullname': 'name',
       },
     })
   })
 
-  test.skip('UserPool OAuth configuration supports Google provider', () => {
+  test('UserPool OAuth configuration supports Google provider', () => {
     const app = new cdk.App()
     const stack = new FitnessFightStack(app, 'TestStack', {
       environment: 'dev',
@@ -315,7 +321,7 @@ describe('FitnessFightStack', () => {
     })
   })
 
-  test.skip('Stack outputs include Google Provider Name', () => {
+  test('Stack outputs include Google Provider Name', () => {
     const app = new cdk.App()
     const stack = new FitnessFightStack(app, 'TestStack', {
       environment: 'dev',
@@ -337,7 +343,7 @@ describe('FitnessFightStack', () => {
     expect(hasGoogleProviderOutput).toBe(true)
   })
 
-  test.skip('Google Client Secret has proper removal policy for dev environment', () => {
+  test('Google Client Secret has proper removal policy for dev environment', () => {
     const app = new cdk.App()
     const stack = new FitnessFightStack(app, 'TestStack', {
       environment: 'dev',
@@ -365,7 +371,7 @@ describe('FitnessFightStack', () => {
     expect(secretResource.DeletionPolicy).toBe('Delete')
   })
 
-  test.skip('Google provider is configured with correct provider name', () => {
+  test('Google provider is configured with correct provider name', () => {
     const app = new cdk.App()
     const stack = new FitnessFightStack(app, 'TestStack', {
       environment: 'dev',

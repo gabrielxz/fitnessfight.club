@@ -1,6 +1,6 @@
 import * as cdk from 'aws-cdk-lib'
 import * as cognito from 'aws-cdk-lib/aws-cognito'
-// import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager' // Temporarily disabled with Google provider
+import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager'
 import { Construct } from 'constructs'
 
 export interface AuthStackProps {
@@ -31,6 +31,18 @@ export class AuthStack extends Construct {
       standardAttributes: {
         email: {
           required: true,
+          mutable: true,
+        },
+        givenName: {
+          required: false,
+          mutable: true,
+        },
+        familyName: {
+          required: false,
+          mutable: true,
+        },
+        fullname: {
+          required: false,
           mutable: true,
         },
       },
@@ -93,36 +105,35 @@ export class AuthStack extends Construct {
       },
       supportedIdentityProviders: [
         cognito.UserPoolClientIdentityProvider.COGNITO,
-        // TEMPORARILY DISABLED: Google provider
-        // cognito.UserPoolClientIdentityProvider.GOOGLE,
+        cognito.UserPoolClientIdentityProvider.GOOGLE,
       ],
       accessTokenValidity: cdk.Duration.hours(1),
       idTokenValidity: cdk.Duration.hours(1),
       refreshTokenValidity: cdk.Duration.days(30),
     })
 
-    // TEMPORARILY DISABLED: Google provider causing deployment issues
-    // Will be configured manually in AWS Console after stable deployment
-    // See: https://github.com/gabrielxz/fitnessfight.club/issues/FC-9
+    // Google OAuth Provider Configuration
+    const googleClientSecretSecret = new secretsmanager.Secret(this, 'GoogleClientSecret', {
+      secretName: `fitnessfight-club-google-client-secret-${environment}`,
+      description: `Google OAuth Client Secret for ${environment} environment`,
+      secretStringValue: cdk.SecretValue.unsafePlainText('PLACEHOLDER_GOOGLE_CLIENT_SECRET'),
+    })
 
-    // const googleClientSecretSecret = new secretsmanager.Secret(this, 'GoogleClientSecret', {
-    //   secretName: `fitnessfight-club-google-client-secret-${environment}`,
-    //   description: `Google OAuth Client Secret for ${environment} environment`,
-    //   secretStringValue: cdk.SecretValue.unsafePlainText('PLACEHOLDER_GOOGLE_CLIENT_SECRET'),
-    // })
+    const googleProvider = new cognito.UserPoolIdentityProviderGoogle(this, 'GoogleProvider', {
+      userPool: this.userPool,
+      clientId: '943111494407-autmunn4il0ea818amad2l5b8d1ud9l5.apps.googleusercontent.com',
+      clientSecretValue: googleClientSecretSecret.secretValue,
+      attributeMapping: {
+        email: cognito.ProviderAttribute.GOOGLE_EMAIL,
+        givenName: cognito.ProviderAttribute.GOOGLE_GIVEN_NAME,
+        familyName: cognito.ProviderAttribute.GOOGLE_FAMILY_NAME,
+        profilePicture: cognito.ProviderAttribute.GOOGLE_PICTURE,
+        fullname: cognito.ProviderAttribute.GOOGLE_NAME,
+      },
+      scopes: ['profile', 'email', 'openid'],
+    })
 
-    // const googleProvider = new cognito.UserPoolIdentityProviderGoogle(this, 'GoogleProvider', {
-    //   userPool: this.userPool,
-    //   clientId: '943111494407-autmunn4il0ea818amad2l5b8d1ud9l5.apps.googleusercontent.com',
-    //   clientSecretValue: googleClientSecretSecret.secretValue,
-    //   attributeMapping: {
-    //     email: cognito.ProviderAttribute.GOOGLE_EMAIL,
-    //     profilePicture: cognito.ProviderAttribute.GOOGLE_PICTURE,
-    //   },
-    //   scopes: ['profile', 'email', 'openid'],
-    // })
-
-    // this.userPoolClient.node.addDependency(googleProvider)
+    this.userPoolClient.node.addDependency(googleProvider)
 
     // Create Hosted UI Domain
     this.userPoolDomain = new cognito.UserPoolDomain(this, 'UserPoolDomain', {
