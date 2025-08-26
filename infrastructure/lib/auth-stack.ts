@@ -1,6 +1,6 @@
 import * as cdk from 'aws-cdk-lib'
 import * as cognito from 'aws-cdk-lib/aws-cognito'
-import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager'
+// import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager' // Temporarily disabled with Google provider
 import { Construct } from 'constructs'
 
 export interface AuthStackProps {
@@ -93,36 +93,36 @@ export class AuthStack extends Construct {
       },
       supportedIdentityProviders: [
         cognito.UserPoolClientIdentityProvider.COGNITO,
-        cognito.UserPoolClientIdentityProvider.GOOGLE,
+        // TEMPORARILY DISABLED: Google provider
+        // cognito.UserPoolClientIdentityProvider.GOOGLE,
       ],
       accessTokenValidity: cdk.Duration.hours(1),
       idTokenValidity: cdk.Duration.hours(1),
       refreshTokenValidity: cdk.Duration.days(30),
     })
 
-    // Create Secrets Manager secret for Google OAuth Client Secret
-    const googleClientSecretSecret = new secretsmanager.Secret(this, 'GoogleClientSecret', {
-      secretName: `fitnessfight-club-google-client-secret-${environment}`,
-      description: `Google OAuth Client Secret for ${environment} environment`,
-      secretStringValue: cdk.SecretValue.unsafePlainText('PLACEHOLDER_GOOGLE_CLIENT_SECRET'),
-    })
+    // TEMPORARILY DISABLED: Google provider causing deployment issues
+    // Will be configured manually in AWS Console after stable deployment
+    // See: https://github.com/gabrielxz/fitnessfight.club/issues/FC-9
 
-    // Configure Google as identity provider
-    // Note: Client ID will be manually stored in Secrets Manager and referenced here
-    // For initial deployment, using placeholder value
-    const googleProvider = new cognito.UserPoolIdentityProviderGoogle(this, 'GoogleProvider', {
-      userPool: this.userPool,
-      clientId: '943111494407-autmunn4il0ea818amad2l5b8d1ud9l5.apps.googleusercontent.com', // Google OAuth Client ID for dev
-      clientSecretValue: googleClientSecretSecret.secretValue,
-      attributeMapping: {
-        email: cognito.ProviderAttribute.GOOGLE_EMAIL,
-        profilePicture: cognito.ProviderAttribute.GOOGLE_PICTURE,
-      },
-      scopes: ['profile', 'email', 'openid'],
-    })
+    // const googleClientSecretSecret = new secretsmanager.Secret(this, 'GoogleClientSecret', {
+    //   secretName: `fitnessfight-club-google-client-secret-${environment}`,
+    //   description: `Google OAuth Client Secret for ${environment} environment`,
+    //   secretStringValue: cdk.SecretValue.unsafePlainText('PLACEHOLDER_GOOGLE_CLIENT_SECRET'),
+    // })
 
-    // Add dependency to ensure provider is created before client updates
-    this.userPoolClient.node.addDependency(googleProvider)
+    // const googleProvider = new cognito.UserPoolIdentityProviderGoogle(this, 'GoogleProvider', {
+    //   userPool: this.userPool,
+    //   clientId: '943111494407-autmunn4il0ea818amad2l5b8d1ud9l5.apps.googleusercontent.com',
+    //   clientSecretValue: googleClientSecretSecret.secretValue,
+    //   attributeMapping: {
+    //     email: cognito.ProviderAttribute.GOOGLE_EMAIL,
+    //     profilePicture: cognito.ProviderAttribute.GOOGLE_PICTURE,
+    //   },
+    //   scopes: ['profile', 'email', 'openid'],
+    // })
+
+    // this.userPoolClient.node.addDependency(googleProvider)
 
     // Create Hosted UI Domain
     this.userPoolDomain = new cognito.UserPoolDomain(this, 'UserPoolDomain', {
@@ -148,9 +148,9 @@ export class AuthStack extends Construct {
       description: 'Cognito Hosted UI Domain',
     })
 
-    new cdk.CfnOutput(this, 'GoogleProviderName', {
-      value: googleProvider.providerName,
-      description: 'Google Identity Provider Name',
-    })
+    // new cdk.CfnOutput(this, 'GoogleProviderName', {
+    //   value: googleProvider.providerName,
+    //   description: 'Google Identity Provider Name',
+    // })
   }
 }
