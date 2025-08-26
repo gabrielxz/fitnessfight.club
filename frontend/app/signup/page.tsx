@@ -3,8 +3,8 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { SignUpForm, ConfirmationCodeForm } from '@/components/auth-forms'
-import { signUp, confirmSignUpCode, resendConfirmationCode } from '@/lib/auth'
+import { SignUpForm, ConfirmationCodeForm, GoogleSignInButton } from '@/components/auth-forms'
+import { signUp, confirmSignUpCode, resendConfirmationCode, federatedSignIn } from '@/lib/auth'
 
 export const dynamic = 'force-dynamic'
 
@@ -12,6 +12,7 @@ export default function SignUpPage() {
   const [step, setStep] = useState<'signup' | 'confirm'>('signup')
   const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(false)
+  const [googleLoading, setGoogleLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const router = useRouter()
 
@@ -69,6 +70,20 @@ export default function SignUpPage() {
     setLoading(false)
   }
 
+  async function handleGoogleSignUp() {
+    try {
+      setGoogleLoading(true)
+      setError(null)
+      // Initiate federated sign-in with Google (same as sign-in for OAuth)
+      await federatedSignIn('Google')
+      // The page will redirect to Google OAuth
+    } catch (err) {
+      console.error('Google sign-up error:', err)
+      setError(err instanceof Error ? err.message : 'Failed to initiate Google sign-up')
+      setGoogleLoading(false)
+    }
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
@@ -92,7 +107,31 @@ export default function SignUpPage() {
 
         <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
           {step === 'signup' ? (
-            <SignUpForm onSubmit={handleSignUp} loading={loading} error={error} />
+            <>
+              {/* Google Sign-Up Button */}
+              <div className="mb-6">
+                <GoogleSignInButton
+                  onClick={handleGoogleSignUp}
+                  loading={googleLoading || loading}
+                />
+              </div>
+
+              {/* Divider */}
+              <div className="relative mb-6">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-gray-300" />
+                </div>
+                <div className="relative flex justify-center text-sm">
+                  <span className="px-4 bg-white text-gray-500">Or sign up with email</span>
+                </div>
+              </div>
+
+              <SignUpForm
+                onSubmit={handleSignUp}
+                loading={loading || googleLoading}
+                error={error}
+              />
+            </>
           ) : (
             <ConfirmationCodeForm
               onSubmit={handleConfirmation}

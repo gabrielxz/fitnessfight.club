@@ -33,8 +33,12 @@ export class AuthStack extends Construct {
           required: true,
           mutable: true,
         },
-        fullname: {
-          required: true,
+        givenName: {
+          required: false,
+          mutable: true,
+        },
+        familyName: {
+          required: false,
           mutable: true,
         },
       },
@@ -120,7 +124,6 @@ export class AuthStack extends Construct {
       clientSecretValue: googleClientSecretSecret.secretValue,
       attributeMapping: {
         email: cognito.ProviderAttribute.GOOGLE_EMAIL,
-        fullname: cognito.ProviderAttribute.GOOGLE_NAME,
         givenName: cognito.ProviderAttribute.GOOGLE_GIVEN_NAME,
         familyName: cognito.ProviderAttribute.GOOGLE_FAMILY_NAME,
         profilePicture: cognito.ProviderAttribute.GOOGLE_PICTURE,
