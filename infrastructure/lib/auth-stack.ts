@@ -116,7 +116,7 @@ export class AuthStack extends Construct {
     // For initial deployment, using placeholder value
     const googleProvider = new cognito.UserPoolIdentityProviderGoogle(this, 'GoogleProvider', {
       userPool: this.userPool,
-      clientId: 'PLACEHOLDER_GOOGLE_CLIENT_ID', // Must be replaced with actual Google OAuth Client ID
+      clientId: '943111494407-autmunn4il0ea818amad2l5b8d1ud9l5.apps.googleusercontent.com', // Google OAuth Client ID for dev
       clientSecretValue: googleClientSecretSecret.secretValue,
       attributeMapping: {
         email: cognito.ProviderAttribute.GOOGLE_EMAIL,
