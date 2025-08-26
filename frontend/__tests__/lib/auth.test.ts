@@ -254,19 +254,21 @@ describe('Auth Functions', () => {
       // Reset mock href
       mockHref = 'https://dev.fitnessfight.club/signin'
 
-      // Delete and recreate window.location mock
-      delete (window as unknown as { location: Location }).location
-      window.location = {
-        get href() {
-          return mockHref
+      // Recreate window.location mock using Object.defineProperty
+      Object.defineProperty(window, 'location', {
+        writable: true,
+        value: {
+          get href() {
+            return mockHref
+          },
+          set href(value: string) {
+            mockHref = value
+          },
+          origin: 'https://dev.fitnessfight.club',
+          pathname: '/signin',
+          search: '',
         },
-        set href(value: string) {
-          mockHref = value
-        },
-        origin: 'https://dev.fitnessfight.club',
-        pathname: '/signin',
-        search: '',
-      } as unknown as Location
+      })
 
       // Mock environment variables
       process.env.NEXT_PUBLIC_ENVIRONMENT = 'dev'
@@ -310,16 +312,18 @@ describe('Auth Functions', () => {
     it.skip('should use production domain when environment is prod', async () => {
       process.env.NEXT_PUBLIC_ENVIRONMENT = 'prod'
       // Update the mock to use prod origin
-      delete (window as unknown as { location: Location }).location
-      window.location = {
-        get href() {
-          return mockHref
+      Object.defineProperty(window, 'location', {
+        writable: true,
+        value: {
+          get href() {
+            return mockHref
+          },
+          set href(value: string) {
+            mockHref = value
+          },
+          origin: 'https://fitnessfight.club',
         },
-        set href(value: string) {
-          mockHref = value
-        },
-        origin: 'https://fitnessfight.club',
-      } as unknown as Location
+      })
 
       await federatedSignIn('Google')
 
@@ -412,16 +416,18 @@ describe('Auth Functions', () => {
     it.skip('should handle different redirect URIs based on origin', async () => {
       // Test with different origin
       mockHref = 'http://localhost:3000/signin'
-      delete (window as unknown as { location: Location }).location
-      window.location = {
-        get href() {
-          return mockHref
+      Object.defineProperty(window, 'location', {
+        writable: true,
+        value: {
+          get href() {
+            return mockHref
+          },
+          set href(value: string) {
+            mockHref = value
+          },
+          origin: 'http://localhost:3000',
         },
-        set href(value: string) {
-          mockHref = value
-        },
-        origin: 'http://localhost:3000',
-      } as unknown as Location
+      })
 
       await federatedSignIn('Google')
 

@@ -74,11 +74,11 @@ const mockLocation = {
   toString: jest.fn(() => 'https://dev.fitnessfight.club/signin'),
 }
 
-// Only mock location if not already mocked (prevents redefinition error)
-if (!window.location || typeof window.location === 'object') {
-  delete (window as unknown as { location: Location }).location
-  window.location = mockLocation as unknown as Location
-}
+// Mock window.location using Object.defineProperty for proper TypeScript support
+Object.defineProperty(window, 'location', {
+  writable: true,
+  value: mockLocation,
+})
 
 describe('SignIn Page', () => {
   beforeEach(() => {
