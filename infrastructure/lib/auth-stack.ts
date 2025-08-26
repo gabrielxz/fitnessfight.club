@@ -33,16 +33,11 @@ export class AuthStack extends Construct {
           required: true,
           mutable: true,
         },
-        givenName: {
-          required: false,
-          mutable: true,
-        },
-        familyName: {
-          required: false,
-          mutable: true,
-        },
       },
       customAttributes: {
+        fullName: new cognito.StringAttribute({
+          mutable: true,
+        }),
         stravaId: new cognito.StringAttribute({
           mutable: true,
         }),
@@ -124,8 +119,9 @@ export class AuthStack extends Construct {
       clientSecretValue: googleClientSecretSecret.secretValue,
       attributeMapping: {
         email: cognito.ProviderAttribute.GOOGLE_EMAIL,
-        givenName: cognito.ProviderAttribute.GOOGLE_GIVEN_NAME,
-        familyName: cognito.ProviderAttribute.GOOGLE_FAMILY_NAME,
+        custom: {
+          fullName: cognito.ProviderAttribute.GOOGLE_NAME,
+        },
         profilePicture: cognito.ProviderAttribute.GOOGLE_PICTURE,
       },
       scopes: ['profile', 'email', 'openid'],

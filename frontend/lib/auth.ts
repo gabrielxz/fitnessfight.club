@@ -53,14 +53,9 @@ export async function signUp({ email, password, fullName }: SignUpParams): Promi
           Name: 'email',
           Value: email,
         },
-        // Parse full name into given and family names
         {
-          Name: 'given_name',
-          Value: fullName.split(' ')[0] || fullName,
-        },
-        {
-          Name: 'family_name',
-          Value: fullName.split(' ').slice(1).join(' ') || '',
+          Name: 'custom:fullName',
+          Value: fullName,
         },
       ],
     })
