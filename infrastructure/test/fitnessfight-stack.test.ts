@@ -186,7 +186,7 @@ describe('FitnessFightStack', () => {
     })
   })
 
-  test('Google identity provider uses placeholder client ID initially', () => {
+  test('Google identity provider uses configured client ID', () => {
     const app = new cdk.App()
     const stack = new FitnessFightStack(app, 'TestStack', {
       environment: 'dev',
@@ -194,11 +194,11 @@ describe('FitnessFightStack', () => {
 
     const template = Template.fromStack(stack)
 
-    // Check that the placeholder client ID is used (will be replaced post-deployment)
+    // Check that the Google client ID is properly configured
     template.hasResourceProperties('AWS::Cognito::UserPoolIdentityProvider', {
       ProviderType: 'Google',
       ProviderDetails: Match.objectLike({
-        client_id: 'PLACEHOLDER_GOOGLE_CLIENT_ID',
+        client_id: '943111494407-autmunn4il0ea818amad2l5b8d1ud9l5.apps.googleusercontent.com',
       }),
     })
   })
