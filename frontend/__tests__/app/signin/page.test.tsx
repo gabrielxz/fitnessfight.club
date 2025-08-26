@@ -79,12 +79,17 @@ const mockLocation = {
   } as unknown as DOMStringList,
 }
 
-// Mock window.location safely using defineProperty
-Object.defineProperty(window, 'location', {
-  writable: true,
-  configurable: true,
-  value: mockLocation,
-})
+// Mock window.location safely using defineProperty with try-catch
+try {
+  Object.defineProperty(window, 'location', {
+    writable: true,
+    configurable: true,
+    value: mockLocation,
+  })
+} catch (e) {
+  // If window.location is already defined and not configurable, skip mocking
+  // This can happen in different test environments
+}
 
 describe('SignIn Page', () => {
   beforeEach(() => {

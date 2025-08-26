@@ -254,31 +254,36 @@ describe('Auth Functions', () => {
       // Reset mock href
       mockHref = 'https://dev.fitnessfight.club/signin'
 
-      // Mock window.location safely using defineProperty
-      Object.defineProperty(window, 'location', {
-        writable: true,
-        configurable: true,
-        value: {
-          href: mockHref,
-          origin: 'https://dev.fitnessfight.club',
-          pathname: '/signin',
-          search: '',
-          hash: '',
-          hostname: 'dev.fitnessfight.club',
-          protocol: 'https:',
-          port: '',
-          host: 'dev.fitnessfight.club',
-          assign: jest.fn(),
-          reload: jest.fn(),
-          replace: jest.fn(),
-          toString: jest.fn(() => mockHref),
-          ancestorOrigins: {
-            length: 0,
-            item: jest.fn(),
-            contains: jest.fn(),
-          } as unknown as DOMStringList,
-        },
-      })
+      // Mock window.location safely using defineProperty with try-catch
+      try {
+        Object.defineProperty(window, 'location', {
+          writable: true,
+          configurable: true,
+          value: {
+            href: mockHref,
+            origin: 'https://dev.fitnessfight.club',
+            pathname: '/signin',
+            search: '',
+            hash: '',
+            hostname: 'dev.fitnessfight.club',
+            protocol: 'https:',
+            port: '',
+            host: 'dev.fitnessfight.club',
+            assign: jest.fn(),
+            reload: jest.fn(),
+            replace: jest.fn(),
+            toString: jest.fn(() => mockHref),
+            ancestorOrigins: {
+              length: 0,
+              item: jest.fn(),
+              contains: jest.fn(),
+            } as unknown as DOMStringList,
+          },
+        })
+      } catch (e) {
+        // If window.location is already defined and not configurable, skip mocking
+        // This can happen in different test environments
+      }
 
       // Mock environment variables
       process.env.NEXT_PUBLIC_ENVIRONMENT = 'dev'
@@ -323,30 +328,34 @@ describe('Auth Functions', () => {
     it.skip('should use production domain when environment is prod', async () => {
       process.env.NEXT_PUBLIC_ENVIRONMENT = 'prod'
       // Update the mock to use prod origin
-      Object.defineProperty(window, 'location', {
-        writable: true,
-        configurable: true,
-        value: {
-          href: mockHref,
-          origin: 'https://fitnessfight.club',
-          pathname: '/signin',
-          search: '',
-          hash: '',
-          hostname: 'fitnessfight.club',
-          protocol: 'https:',
-          port: '',
-          host: 'fitnessfight.club',
-          assign: jest.fn(),
-          reload: jest.fn(),
-          replace: jest.fn(),
-          toString: jest.fn(() => mockHref),
-          ancestorOrigins: {
-            length: 0,
-            item: jest.fn(),
-            contains: jest.fn(),
-          } as unknown as DOMStringList,
-        },
-      })
+      try {
+        Object.defineProperty(window, 'location', {
+          writable: true,
+          configurable: true,
+          value: {
+            href: mockHref,
+            origin: 'https://fitnessfight.club',
+            pathname: '/signin',
+            search: '',
+            hash: '',
+            hostname: 'fitnessfight.club',
+            protocol: 'https:',
+            port: '',
+            host: 'fitnessfight.club',
+            assign: jest.fn(),
+            reload: jest.fn(),
+            replace: jest.fn(),
+            toString: jest.fn(() => mockHref),
+            ancestorOrigins: {
+              length: 0,
+              item: jest.fn(),
+              contains: jest.fn(),
+            } as unknown as DOMStringList,
+          },
+        })
+      } catch (e) {
+        // Skip if location can't be redefined
+      }
 
       await federatedSignIn('Google')
 
@@ -439,30 +448,34 @@ describe('Auth Functions', () => {
     it.skip('should handle different redirect URIs based on origin', async () => {
       // Test with different origin
       mockHref = 'http://localhost:3000/signin'
-      Object.defineProperty(window, 'location', {
-        writable: true,
-        configurable: true,
-        value: {
-          href: mockHref,
-          origin: 'http://localhost:3000',
-          pathname: '/signin',
-          search: '',
-          hash: '',
-          hostname: 'localhost',
-          protocol: 'http:',
-          port: '3000',
-          host: 'localhost:3000',
-          assign: jest.fn(),
-          reload: jest.fn(),
-          replace: jest.fn(),
-          toString: jest.fn(() => mockHref),
-          ancestorOrigins: {
-            length: 0,
-            item: jest.fn(),
-            contains: jest.fn(),
-          } as unknown as DOMStringList,
-        },
-      })
+      try {
+        Object.defineProperty(window, 'location', {
+          writable: true,
+          configurable: true,
+          value: {
+            href: mockHref,
+            origin: 'http://localhost:3000',
+            pathname: '/signin',
+            search: '',
+            hash: '',
+            hostname: 'localhost',
+            protocol: 'http:',
+            port: '3000',
+            host: 'localhost:3000',
+            assign: jest.fn(),
+            reload: jest.fn(),
+            replace: jest.fn(),
+            toString: jest.fn(() => mockHref),
+            ancestorOrigins: {
+              length: 0,
+              item: jest.fn(),
+              contains: jest.fn(),
+            } as unknown as DOMStringList,
+          },
+        })
+      } catch (e) {
+        // Skip if location can't be redefined
+      }
 
       await federatedSignIn('Google')
 
