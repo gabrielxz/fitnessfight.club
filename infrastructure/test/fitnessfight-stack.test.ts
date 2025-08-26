@@ -154,7 +154,7 @@ describe('FitnessFightStack', () => {
         picture: 'picture',
         given_name: 'given_name',
         family_name: 'family_name',
-        'custom:fullname': 'name',
+        fullname: 'name',
       }),
     })
 
@@ -300,7 +300,7 @@ describe('FitnessFightStack', () => {
         picture: 'picture',
         given_name: 'given_name',
         family_name: 'family_name',
-        'custom:fullname': 'name',
+        fullname: 'name',
       },
     })
   })

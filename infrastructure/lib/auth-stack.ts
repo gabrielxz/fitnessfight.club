@@ -128,7 +128,9 @@ export class AuthStack extends Construct {
         givenName: cognito.ProviderAttribute.GOOGLE_GIVEN_NAME,
         familyName: cognito.ProviderAttribute.GOOGLE_FAMILY_NAME,
         profilePicture: cognito.ProviderAttribute.GOOGLE_PICTURE,
-        fullname: cognito.ProviderAttribute.GOOGLE_NAME,
+        custom: {
+          fullname: cognito.ProviderAttribute.GOOGLE_NAME,
+        },
       },
       scopes: ['profile', 'email', 'openid'],
     })
@@ -159,9 +161,9 @@ export class AuthStack extends Construct {
       description: 'Cognito Hosted UI Domain',
     })
 
-    // new cdk.CfnOutput(this, 'GoogleProviderName', {
-    //   value: googleProvider.providerName,
-    //   description: 'Google Identity Provider Name',
-    // })
+    new cdk.CfnOutput(this, 'GoogleProviderName', {
+      value: googleProvider.providerName,
+      description: 'Google Identity Provider Name',
+    })
   }
 }
