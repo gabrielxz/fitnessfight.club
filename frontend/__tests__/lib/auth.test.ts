@@ -254,21 +254,17 @@ describe('Auth Functions', () => {
       // Reset mock href
       mockHref = 'https://dev.fitnessfight.club/signin'
 
-      // Recreate window.location mock using Object.defineProperty
-      Object.defineProperty(window, 'location', {
-        writable: true,
-        value: {
-          get href() {
-            return mockHref
-          },
-          set href(value: string) {
-            mockHref = value
-          },
-          origin: 'https://dev.fitnessfight.club',
-          pathname: '/signin',
-          search: '',
-        },
-      })
+      // Mock window.location safely
+      const originalLocation = window.location
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      delete (window as any).location
+      window.location = {
+        ...originalLocation,
+        href: mockHref,
+        origin: 'https://dev.fitnessfight.club',
+        pathname: '/signin',
+        search: '',
+      } as Location
 
       // Mock environment variables
       process.env.NEXT_PUBLIC_ENVIRONMENT = 'dev'
@@ -303,6 +299,7 @@ describe('Auth Functions', () => {
       // Verify state parameter exists and is valid JSON
       const state = url.searchParams.get('state')
       expect(state).toBeTruthy()
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       const decodedState = JSON.parse(atob(state!))
       expect(decodedState).toHaveProperty('provider', 'Google')
       expect(decodedState).toHaveProperty('timestamp')
@@ -312,18 +309,14 @@ describe('Auth Functions', () => {
     it.skip('should use production domain when environment is prod', async () => {
       process.env.NEXT_PUBLIC_ENVIRONMENT = 'prod'
       // Update the mock to use prod origin
-      Object.defineProperty(window, 'location', {
-        writable: true,
-        value: {
-          get href() {
-            return mockHref
-          },
-          set href(value: string) {
-            mockHref = value
-          },
-          origin: 'https://fitnessfight.club',
-        },
-      })
+      const originalLocation = window.location
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      delete (window as any).location
+      window.location = {
+        ...originalLocation,
+        href: mockHref,
+        origin: 'https://fitnessfight.club',
+      } as Location
 
       await federatedSignIn('Google')
 
@@ -416,18 +409,14 @@ describe('Auth Functions', () => {
     it.skip('should handle different redirect URIs based on origin', async () => {
       // Test with different origin
       mockHref = 'http://localhost:3000/signin'
-      Object.defineProperty(window, 'location', {
-        writable: true,
-        value: {
-          get href() {
-            return mockHref
-          },
-          set href(value: string) {
-            mockHref = value
-          },
-          origin: 'http://localhost:3000',
-        },
-      })
+      const originalLocation = window.location
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      delete (window as any).location
+      window.location = {
+        ...originalLocation,
+        href: mockHref,
+        origin: 'http://localhost:3000',
+      } as Location
 
       await federatedSignIn('Google')
 

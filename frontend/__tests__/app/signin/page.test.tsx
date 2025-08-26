@@ -74,11 +74,10 @@ const mockLocation = {
   toString: jest.fn(() => 'https://dev.fitnessfight.club/signin'),
 }
 
-// Mock window.location using Object.defineProperty for proper TypeScript support
-Object.defineProperty(window, 'location', {
-  writable: true,
-  value: mockLocation,
-})
+// Mock window.location safely
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+delete (window as any).location
+window.location = mockLocation as Location
 
 describe('SignIn Page', () => {
   beforeEach(() => {
