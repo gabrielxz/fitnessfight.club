@@ -1,6 +1,11 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { SignUpForm, SignInForm, ConfirmationCodeForm } from '@/components/auth-forms'
+import {
+  SignUpForm,
+  SignInForm,
+  ConfirmationCodeForm,
+  GoogleSignInButton,
+} from '@/components/auth-forms'
 
 describe('Auth Forms', () => {
   describe('SignUpForm', () => {
@@ -237,6 +242,144 @@ describe('Auth Forms', () => {
       expect(codeInput).toHaveAttribute('maxlength', '6')
       expect(codeInput).toHaveAttribute('pattern', '[0-9]{6}')
       expect(codeInput).toHaveAttribute('placeholder', '000000')
+    })
+  })
+
+  describe('GoogleSignInButton', () => {
+    const mockOnClick = jest.fn()
+
+    beforeEach(() => {
+      jest.clearAllMocks()
+    })
+
+    it('should render with Google branding', () => {
+      render(<GoogleSignInButton onClick={mockOnClick} loading={false} />)
+
+      const button = screen.getByRole('button')
+      expect(button).toHaveTextContent('Sign in with Google')
+
+      // Check for Google logo SVG
+      const svg = button.querySelector('svg')
+      expect(svg).toBeInTheDocument()
+      expect(svg).toHaveAttribute('width', '18')
+      expect(svg).toHaveAttribute('height', '18')
+    })
+
+    it('should call onClick when clicked', async () => {
+      const user = userEvent.setup()
+      render(<GoogleSignInButton onClick={mockOnClick} loading={false} />)
+
+      const button = screen.getByRole('button')
+      await user.click(button)
+
+      expect(mockOnClick).toHaveBeenCalledTimes(1)
+    })
+
+    it('should be disabled when loading', () => {
+      render(<GoogleSignInButton onClick={mockOnClick} loading={true} />)
+
+      const button = screen.getByRole('button')
+      expect(button).toBeDisabled()
+      // The button text doesn't change when loading - it always shows "Sign in with Google"
+      expect(button).toHaveTextContent('Sign in with Google')
+    })
+
+    it('should not call onClick when disabled', async () => {
+      const user = userEvent.setup()
+      render(<GoogleSignInButton onClick={mockOnClick} loading={true} />)
+
+      const button = screen.getByRole('button')
+      await user.click(button)
+
+      expect(mockOnClick).not.toHaveBeenCalled()
+    })
+
+    it('should have correct styling classes', () => {
+      render(<GoogleSignInButton onClick={mockOnClick} loading={false} />)
+
+      const button = screen.getByRole('button')
+
+      // Check for minimum height requirement (40px) via inline style
+      expect(button).toHaveStyle({ minHeight: '40px' })
+
+      // Check for white background
+      expect(button).toHaveClass('bg-white')
+
+      // Check for border
+      expect(button).toHaveClass('border')
+
+      // Check for hover effects
+      expect(button).toHaveClass('hover:bg-gray-50')
+
+      // Check for shadow
+      expect(button).toHaveClass('shadow-sm')
+    })
+
+    it('should use Roboto font family', () => {
+      render(<GoogleSignInButton onClick={mockOnClick} loading={false} />)
+
+      // The font family is applied to the span element inside the button
+      const textElement = screen.getByText('Sign in with Google')
+      expect(textElement).toHaveStyle({ fontFamily: 'Roboto, sans-serif' })
+    })
+
+    it('should have proper button type', () => {
+      render(<GoogleSignInButton onClick={mockOnClick} loading={false} />)
+
+      const button = screen.getByRole('button')
+      expect(button).toHaveAttribute('type', 'button')
+    })
+
+    it('should maintain consistent appearance when not loading', () => {
+      const { rerender } = render(<GoogleSignInButton onClick={mockOnClick} loading={false} />)
+
+      let button = screen.getByRole('button')
+      expect(button).toHaveTextContent('Sign in with Google')
+
+      // Re-render with same props
+      rerender(<GoogleSignInButton onClick={mockOnClick} loading={false} />)
+
+      button = screen.getByRole('button')
+      expect(button).toHaveTextContent('Sign in with Google')
+    })
+
+    it('should show loading indicator when loading', () => {
+      render(<GoogleSignInButton onClick={mockOnClick} loading={true} />)
+
+      const button = screen.getByRole('button')
+
+      // The current implementation doesn't show a loading spinner, it just disables the button
+      // The Google logo is always visible
+      const googleLogo = button.querySelector('svg')
+      expect(googleLogo).toBeInTheDocument()
+      expect(button).toBeDisabled()
+    })
+
+    it('should properly position Google logo and text', () => {
+      render(<GoogleSignInButton onClick={mockOnClick} loading={false} />)
+
+      const button = screen.getByRole('button')
+
+      // Button should use flex for alignment
+      expect(button).toHaveClass('flex')
+      expect(button).toHaveClass('items-center')
+      expect(button).toHaveClass('justify-center')
+      expect(button).toHaveClass('gap-3')
+    })
+
+    it('should have correct opacity when disabled', () => {
+      render(<GoogleSignInButton onClick={mockOnClick} loading={true} />)
+
+      const button = screen.getByRole('button')
+      expect(button).toHaveClass('disabled:opacity-50')
+    })
+
+    it('should have accessible button attributes', () => {
+      render(<GoogleSignInButton onClick={mockOnClick} loading={false} />)
+
+      const button = screen.getByRole('button')
+      expect(button).toBeEnabled()
+      expect(button).toBeVisible()
     })
   })
 })

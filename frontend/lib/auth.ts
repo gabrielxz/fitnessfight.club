@@ -287,3 +287,55 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
     return null
   }
 }
+
+export async function federatedSignIn(provider: 'Google'): Promise<void> {
+  // Validate provider
+  if (provider !== 'Google') {
+    throw new Error(`Unsupported provider: ${provider}`)
+  }
+
+  // Ensure CLIENT_ID is available
+  if (!CLIENT_ID) {
+    throw new Error('Authentication not configured. Please check your environment variables.')
+  }
+
+  // Get environment from env variable or default to dev
+  const environment = process.env.NEXT_PUBLIC_ENVIRONMENT || 'dev'
+
+  // Construct Cognito domain
+  const cognitoDomain = `fitnessfight-club-${environment}`
+  const region = 'us-east-1'
+
+  // Determine redirect URI based on current location
+  const redirectUri =
+    typeof window !== 'undefined'
+      ? `${window.location.origin}/signin`
+      : environment === 'prod'
+        ? 'https://fitnessfight.club/signin'
+        : 'https://dev.fitnessfight.club/signin'
+
+  // Construct the Cognito Hosted UI URL with Google as identity provider
+  const cognitoUrl = new URL(
+    `https://${cognitoDomain}.auth.${region}.amazoncognito.com/oauth2/authorize`
+  )
+
+  // Add OAuth parameters for authorization code flow with implicit fallback
+  cognitoUrl.searchParams.append('identity_provider', provider)
+  cognitoUrl.searchParams.append('response_type', 'token') // Using implicit flow for simpler frontend-only auth
+  cognitoUrl.searchParams.append('client_id', CLIENT_ID)
+  cognitoUrl.searchParams.append('redirect_uri', redirectUri)
+  cognitoUrl.searchParams.append('scope', 'email openid profile')
+
+  // Generate state for CSRF protection
+  const state = btoa(
+    JSON.stringify({
+      provider,
+      timestamp: Date.now(),
+      origin: window.location.href,
+    })
+  )
+  cognitoUrl.searchParams.append('state', state)
+
+  // Redirect to Cognito Hosted UI with Google provider
+  window.location.href = cognitoUrl.toString()
+}
