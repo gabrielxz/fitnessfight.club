@@ -151,7 +151,6 @@ describe('FitnessFightStack', () => {
       ProviderType: 'Google',
       AttributeMapping: Match.objectLike({
         email: 'email',
-        fullName: 'name',
         picture: 'picture',
       }),
     })
@@ -295,7 +294,6 @@ describe('FitnessFightStack', () => {
       ProviderType: 'Google',
       AttributeMapping: {
         email: 'email',
-        fullName: 'name',
         picture: 'picture',
       },
     })

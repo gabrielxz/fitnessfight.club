@@ -27,7 +27,7 @@ export interface AuthUser {
 export interface SignUpParams {
   email: string
   password: string
-  fullName: string
+  fullName?: string // Make optional for now
 }
 
 export interface SignInParams {
@@ -36,7 +36,7 @@ export interface SignInParams {
 }
 
 // Client-side auth functions
-export async function signUp({ email, password, fullName }: SignUpParams): Promise<{
+export async function signUp({ email, password }: SignUpParams): Promise<{
   success: boolean
   isSignUpComplete?: boolean
   userId?: string
@@ -53,10 +53,7 @@ export async function signUp({ email, password, fullName }: SignUpParams): Promi
           Name: 'email',
           Value: email,
         },
-        {
-          Name: 'custom:fullName',
-          Value: fullName,
-        },
+        // Note: fullName can be stored in user profile later if needed
       ],
     })
 
