@@ -72,12 +72,19 @@ const mockLocation = {
   reload: jest.fn(),
   replace: jest.fn(),
   toString: jest.fn(() => 'https://dev.fitnessfight.club/signin'),
+  ancestorOrigins: {
+    length: 0,
+    item: jest.fn(),
+    contains: jest.fn(),
+  } as unknown as DOMStringList,
 }
 
-// Mock window.location safely
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-delete (window as any).location
-window.location = mockLocation as Location
+// Mock window.location safely using defineProperty
+Object.defineProperty(window, 'location', {
+  writable: true,
+  configurable: true,
+  value: mockLocation,
+})
 
 describe('SignIn Page', () => {
   beforeEach(() => {
