@@ -1,7 +1,7 @@
 const path = require('path')
 
 module.exports = {
-  // Frontend TypeScript/JavaScript files - use Next.js lint
+  // Frontend TypeScript/JavaScript files - use Next.js lint and TypeScript check
   'frontend/**/*.{js,jsx,ts,tsx}': (filenames) => {
     // Next.js lint expects to be run from the frontend directory
     // and needs relative paths from there
@@ -11,6 +11,7 @@ module.exports = {
     
     return [
       `sh -c "cd frontend && npx next lint --fix --file ${frontendFiles}"`,
+      `sh -c "cd frontend && npx tsc --noEmit"`, // Add TypeScript check
       ...filenames.map((file) => `npx prettier --write "${file}"`)
     ]
   },
