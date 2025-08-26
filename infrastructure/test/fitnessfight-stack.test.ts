@@ -296,7 +296,6 @@ describe('FitnessFightStack', () => {
       ProviderType: 'Google',
       AttributeMapping: {
         email: 'email',
-        name: 'name',
         given_name: 'given_name',
         family_name: 'family_name',
         picture: 'picture',
