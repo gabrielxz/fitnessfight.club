@@ -358,9 +358,8 @@ describe('FitnessFightStack', () => {
     // Verify callback URLs include the required OAuth endpoints
     template.hasResourceProperties('AWS::Cognito::UserPoolClient', {
       CallbackURLs: Match.arrayWith([
-        'https://dev.fitnessfight.club/api/auth/callback',
-        'https://dev.fitnessfight.club/signin',
-        'https://dev.fitnessfight.club/signup',
+        'https://dev.fitnessfight.club/auth/callback',
+        'http://localhost:3000/auth/callback',
       ]),
     })
   })
@@ -376,9 +375,8 @@ describe('FitnessFightStack', () => {
     // Verify callback URLs use production domain
     template.hasResourceProperties('AWS::Cognito::UserPoolClient', {
       CallbackURLs: Match.arrayWith([
-        'https://fitnessfight.club/api/auth/callback',
-        'https://fitnessfight.club/signin',
-        'https://fitnessfight.club/signup',
+        'https://fitnessfight.club/auth/callback',
+        'http://localhost:3000/auth/callback',
       ]),
     })
   })
