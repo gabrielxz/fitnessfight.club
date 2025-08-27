@@ -83,6 +83,7 @@ export class AuthStack extends Construct {
         callbackUrls:
           environment === 'prod'
             ? [
+                'https://api.fitnessfight.club/api/v1/auth/google/callback',
                 'https://fitnessfight.club/api/auth/callback',
                 'https://fitnessfight.club/signin',
                 'https://fitnessfight.club/signup',
@@ -91,6 +92,7 @@ export class AuthStack extends Construct {
                 'http://localhost:3000/signup',
               ]
             : [
+                'https://api.dev.fitnessfight.club/api/v1/auth/google/callback',
                 'https://dev.fitnessfight.club/api/auth/callback',
                 'https://dev.fitnessfight.club/signin',
                 'https://dev.fitnessfight.club/signup',

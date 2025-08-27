@@ -226,7 +226,15 @@ export async function federatedSignIn(provider: 'Google'): Promise<void> {
   const region = 'us-east-1'
 
   // The redirect URI must point to our backend endpoint
-  const redirectUri = `${process.env.NEXT_PUBLIC_API_URL}/api/v1/auth/google/callback`
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL
+
+  if (!apiUrl) {
+    throw new Error(
+      'API URL not configured. Please check NEXT_PUBLIC_API_URL environment variable.'
+    )
+  }
+
+  const redirectUri = `${apiUrl}/api/v1/auth/google/callback`
 
   // Construct the Cognito Hosted UI URL
   const cognitoUrl = new URL(
