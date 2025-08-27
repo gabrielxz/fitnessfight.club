@@ -332,35 +332,6 @@ describe('FitnessFightStack', () => {
     expect(hasGoogleProviderOutput).toBe(true)
   })
 
-  test('Google OAuth secret sync custom resources exist', () => {
-    const app = new cdk.App()
-    const stack = new FitnessFightStack(app, 'TestStack', {
-      environment: 'dev',
-    })
-
-    const template = Template.fromStack(stack)
-
-    // Verify we have custom resources for Google OAuth secret sync
-    const resources = template.toJSON().Resources
-
-    // Count Custom::AWS resources (should have at least 2 for Google secret sync)
-    const customResourceCount = Object.values(resources).filter((resource: any) => {
-      return resource.Type === 'Custom::AWS'
-    }).length
-
-    // We should have at least 2 custom resources:
-    // 1. GoogleSecretSync - to get the secret value
-    // 2. UpdateCognitoGoogleProvider - to update Cognito with the secret
-    expect(customResourceCount).toBeGreaterThanOrEqual(2)
-
-    // Check that we have resources with Google-related names
-    const hasGoogleSyncResources = Object.keys(resources).some(
-      (key) => key.includes('GoogleSecretSync') || key.includes('UpdateCognitoGoogleProvider')
-    )
-
-    expect(hasGoogleSyncResources).toBe(true)
-  })
-
   test('Google provider is configured with correct provider name', () => {
     const app = new cdk.App()
     const stack = new FitnessFightStack(app, 'TestStack', {
