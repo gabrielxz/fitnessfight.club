@@ -93,7 +93,7 @@ function SignInContent() {
         setError('Authentication failed. No tokens received.')
       }
     } catch (err) {
-      console.error('OAuth callback error:', err)
+      console.error('Error in handleOAuthCallback:', err)
       setError('Failed to complete authentication. Please try again.')
     } finally {
       setLoading(false)

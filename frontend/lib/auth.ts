@@ -280,7 +280,7 @@ export async function getCurrentUser(): Promise<AuthUser | null> {
       cognitoId: subAttr.Value,
     }
   } catch (error) {
-    console.error('Get current user error:', error)
+    console.error('Error in getCurrentUser:', error)
     return null
   }
 }
