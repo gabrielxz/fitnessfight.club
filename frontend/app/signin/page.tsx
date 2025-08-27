@@ -20,14 +20,13 @@ function SignInContent() {
   const { refreshUser } = useAuth()
 
   useEffect(() => {
-    // Check for OAuth callback with code parameter
-    const code = searchParams?.get('code')
+    // Check for OAuth callback - tokens come in URL fragment for implicit flow
+    const hash = window.location.hash
     const authError = searchParams?.get('error')
     const authErrorDescription = searchParams?.get('error_description')
 
-    if (code) {
-      // OAuth callback successful - tokens are handled by Cognito Hosted UI
-      // Extract tokens from URL fragment if present
+    if (hash && (hash.includes('id_token') || hash.includes('access_token'))) {
+      // OAuth callback successful with tokens in fragment
       handleOAuthCallback()
     } else if (authError) {
       // OAuth error
@@ -73,11 +72,9 @@ function SignInContent() {
         // Refresh user state
         await refreshUser()
 
-        // Clean URL
+        // Clean URL - remove hash and any OAuth params
         if (typeof window !== 'undefined') {
           const newUrl = new URL(window.location.href)
-          newUrl.searchParams.delete('code')
-          newUrl.searchParams.delete('state')
           newUrl.hash = ''
           window.history.replaceState({}, '', newUrl.toString())
         }
@@ -86,17 +83,9 @@ function SignInContent() {
         router.push('/')
         router.refresh()
       } else {
-        // For authorization code flow, Cognito handles the token exchange
-        // The user should be redirected back here with tokens
-        // This might require additional backend handling
-        setSuccessMessage('Authentication successful! Redirecting...')
-
-        // Give Cognito time to process
-        setTimeout(async () => {
-          await refreshUser()
-          router.push('/')
-          router.refresh()
-        }, 1000)
+        // No tokens found in hash
+        console.error('No tokens found in OAuth callback')
+        setError('Authentication failed. No tokens received.')
       }
     } catch (err) {
       console.error('OAuth callback error:', err)
