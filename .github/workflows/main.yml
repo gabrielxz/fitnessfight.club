@@ -56,7 +56,14 @@ jobs:
         run: npm ci
 
       - name: Build frontend
-        run: npm run build --workspace=frontend
+        env:
+          NEXT_PUBLIC_API_URL: https://api.fitnessfight.club
+          NEXT_PUBLIC_ENVIRONMENT: prod
+        run: |
+          echo "Building frontend with configuration:"
+          echo "API_URL: $NEXT_PUBLIC_API_URL"
+          echo "ENVIRONMENT: $NEXT_PUBLIC_ENVIRONMENT"
+          npm run build --workspace=frontend
 
       - name: Upload frontend artifacts
         uses: actions/upload-artifact@v4

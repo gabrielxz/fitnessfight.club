@@ -96,10 +96,14 @@ jobs:
         env:
           NEXT_PUBLIC_USER_POOL_ID: ${{ steps.get-cognito.outputs.USER_POOL_ID }}
           NEXT_PUBLIC_USER_POOL_CLIENT_ID: ${{ steps.get-cognito.outputs.USER_POOL_CLIENT_ID }}
+          NEXT_PUBLIC_API_URL: https://api.dev.fitnessfight.club
+          NEXT_PUBLIC_ENVIRONMENT: dev
         run: |
           echo "Building with Cognito configuration:"
           echo "USER_POOL_ID: $NEXT_PUBLIC_USER_POOL_ID"
           echo "CLIENT_ID: $NEXT_PUBLIC_USER_POOL_CLIENT_ID"
+          echo "API_URL: $NEXT_PUBLIC_API_URL"
+          echo "ENVIRONMENT: $NEXT_PUBLIC_ENVIRONMENT"
           npm run build --workspace=frontend
 
       - name: Upload frontend artifacts
@@ -182,10 +186,14 @@ jobs:
         env:
           NEXT_PUBLIC_USER_POOL_ID: ${{ steps.check-rebuild.outputs.USER_POOL_ID }}
           NEXT_PUBLIC_USER_POOL_CLIENT_ID: ${{ steps.check-rebuild.outputs.CLIENT_ID }}
+          NEXT_PUBLIC_API_URL: https://api.dev.fitnessfight.club
+          NEXT_PUBLIC_ENVIRONMENT: dev
         run: |
           echo "Rebuilding frontend with actual Cognito configuration..."
           echo "USER_POOL_ID: $NEXT_PUBLIC_USER_POOL_ID"
           echo "CLIENT_ID: $NEXT_PUBLIC_USER_POOL_CLIENT_ID"
+          echo "API_URL: $NEXT_PUBLIC_API_URL"
+          echo "ENVIRONMENT: $NEXT_PUBLIC_ENVIRONMENT"
           npm run build --workspace=frontend
 
           # Upload the rebuilt frontend to S3
