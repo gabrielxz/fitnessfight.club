@@ -36,6 +36,11 @@ function SignInContent() {
       if (error) {
         const errorMessage = errorDescription || error || 'Authentication failed'
         setError(errorMessage)
+        // Clean URL by removing OAuth parameters
+        const newUrl = new URL(window.location.href)
+        newUrl.searchParams.delete('error')
+        newUrl.searchParams.delete('error_description')
+        window.history.replaceState({}, '', newUrl.toString())
       } else if (confirmed === 'true') {
         setSuccessMessage('Email confirmed successfully! You can now sign in.')
       } else if (reset === 'success') {
