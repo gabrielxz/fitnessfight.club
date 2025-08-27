@@ -127,10 +127,8 @@ export class AuthStack extends Construct {
         email: cognito.ProviderAttribute.GOOGLE_EMAIL,
         givenName: cognito.ProviderAttribute.GOOGLE_GIVEN_NAME,
         familyName: cognito.ProviderAttribute.GOOGLE_FAMILY_NAME,
+        fullname: cognito.ProviderAttribute.GOOGLE_NAME,
         profilePicture: cognito.ProviderAttribute.GOOGLE_PICTURE,
-        custom: {
-          fullname: cognito.ProviderAttribute.GOOGLE_NAME,
-        },
       },
       scopes: ['profile', 'email', 'openid'],
     })
