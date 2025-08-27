@@ -1,6 +1,8 @@
 import * as cdk from 'aws-cdk-lib'
 import * as cognito from 'aws-cdk-lib/aws-cognito'
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager'
+import * as iam from 'aws-cdk-lib/aws-iam'
+import * as cr from 'aws-cdk-lib/custom-resources'
 import { Construct } from 'constructs'
 
 export interface AuthStackProps {
@@ -113,12 +115,13 @@ export class AuthStack extends Construct {
     })
 
     // Google OAuth Provider Configuration
-    // Create secret with placeholder - update manually after deployment
-    const googleClientSecretSecret = new secretsmanager.Secret(this, 'GoogleClientSecret', {
-      secretName: `fitnessfight-club-google-client-secret-${environment}`,
-      description: `Google OAuth Client Secret for ${environment} environment`,
-      secretStringValue: cdk.SecretValue.unsafePlainText('PLACEHOLDER_GOOGLE_CLIENT_SECRET'),
-    })
+    // Reference existing secret - must be created manually before first deployment
+    // aws secretsmanager create-secret --name fitnessfight-club-google-client-secret-dev --secret-string "YOUR_SECRET" --region us-east-1
+    const googleClientSecretSecret = secretsmanager.Secret.fromSecretNameV2(
+      this,
+      'GoogleClientSecret',
+      `fitnessfight-club-google-client-secret-${environment}`
+    )
 
     const googleProvider = new cognito.UserPoolIdentityProviderGoogle(this, 'GoogleProvider', {
       userPool: this.userPool,
@@ -135,6 +138,89 @@ export class AuthStack extends Construct {
     })
 
     this.userPoolClient.node.addDependency(googleProvider)
+
+    // Custom resource to sync the actual Google secret value to Cognito
+    // This is needed because Cognito doesn't support CloudFormation secret references
+    const googleSecretSync = new cr.AwsCustomResource(this, 'GoogleSecretSync', {
+      onCreate: {
+        service: 'SecretsManager',
+        action: 'getSecretValue',
+        parameters: {
+          SecretId: `fitnessfight-club-google-client-secret-${environment}`,
+        },
+        physicalResourceId: cr.PhysicalResourceId.of('GoogleSecretSync'),
+      },
+      onUpdate: {
+        service: 'SecretsManager',
+        action: 'getSecretValue',
+        parameters: {
+          SecretId: `fitnessfight-club-google-client-secret-${environment}`,
+        },
+      },
+      policy: cr.AwsCustomResourcePolicy.fromStatements([
+        new iam.PolicyStatement({
+          actions: ['secretsmanager:GetSecretValue'],
+          resources: [googleClientSecretSecret.secretArn],
+        }),
+        new iam.PolicyStatement({
+          actions: ['cognito-idp:UpdateIdentityProvider'],
+          resources: [this.userPool.userPoolArn],
+        }),
+      ]),
+    })
+
+    // After getting the secret, update Cognito
+    const updateCognito = new cr.AwsCustomResource(this, 'UpdateCognitoGoogleProvider', {
+      onCreate: {
+        service: 'CognitoIdentityServiceProvider',
+        action: 'updateIdentityProvider',
+        parameters: {
+          UserPoolId: this.userPool.userPoolId,
+          ProviderName: 'Google',
+          ProviderDetails: {
+            client_id: '943111494407-autmunn4il0ea818amad2l5b8d1ud9l5.apps.googleusercontent.com',
+            client_secret: googleSecretSync.getResponseField('SecretString'),
+            authorize_scopes: 'profile email openid',
+          },
+          AttributeMapping: {
+            email: 'email',
+            given_name: 'given_name',
+            family_name: 'family_name',
+            name: 'name',
+          },
+        },
+        physicalResourceId: cr.PhysicalResourceId.of('UpdateCognitoGoogleProvider'),
+      },
+      onUpdate: {
+        service: 'CognitoIdentityServiceProvider',
+        action: 'updateIdentityProvider',
+        parameters: {
+          UserPoolId: this.userPool.userPoolId,
+          ProviderName: 'Google',
+          ProviderDetails: {
+            client_id: '943111494407-autmunn4il0ea818amad2l5b8d1ud9l5.apps.googleusercontent.com',
+            client_secret: googleSecretSync.getResponseField('SecretString'),
+            authorize_scopes: 'profile email openid',
+          },
+          AttributeMapping: {
+            email: 'email',
+            given_name: 'given_name',
+            family_name: 'family_name',
+            name: 'name',
+          },
+        },
+      },
+      policy: cr.AwsCustomResourcePolicy.fromStatements([
+        new iam.PolicyStatement({
+          actions: ['cognito-idp:UpdateIdentityProvider'],
+          resources: [this.userPool.userPoolArn],
+        }),
+      ]),
+    })
+
+    // Ensure updates happen in correct order
+    updateCognito.node.addDependency(googleProvider)
+    updateCognito.node.addDependency(googleSecretSync)
 
     // Create Hosted UI Domain
     this.userPoolDomain = new cognito.UserPoolDomain(this, 'UserPoolDomain', {
