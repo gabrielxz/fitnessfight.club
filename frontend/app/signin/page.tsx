@@ -108,7 +108,6 @@ function SignInContent() {
       // Redirect to home page or return URL
       const returnUrl = searchParams?.get('returnUrl') || '/'
       router.push(returnUrl)
-      router.refresh()
     } else {
       setError(result.error || 'Sign in failed')
     }
