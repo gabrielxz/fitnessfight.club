@@ -11,7 +11,6 @@ import { setAuthTokens } from '@/lib/cognito-client'
 export const dynamic = 'force-dynamic'
 
 function SignInContent() {
-  console.log('Rendering SignInContent')
   const [loading, setLoading] = useState(false)
   const [googleLoading, setGoogleLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -22,39 +21,37 @@ function SignInContent() {
 
   useEffect(() => {
     function handleUrlChange() {
-      console.log('URL changed. New URL:', window.location.href)
       const hash = window.location.hash
-      const searchParams = new URLSearchParams(window.location.search)
 
       if (hash && (hash.includes('id_token') || hash.includes('access_token'))) {
-        console.log('OAuth callback detected in hash')
         handleOAuthCallback()
-      } else {
-        const authError = searchParams.get('error')
-        if (authError) {
-          const authErrorDescription = searchParams.get('error_description')
-          const errorMessage = authErrorDescription || authError || 'Authentication failed'
-          setError(errorMessage)
-          const newUrl = new URL(window.location.href)
-          newUrl.searchParams.delete('error')
-          newUrl.searchParams.delete('error_description')
-          window.history.replaceState({}, '', newUrl.toString())
-        }
+        return // Stop processing if we have a token in the hash
+      }
+
+      const confirmed = searchParams?.get('confirmed')
+      const reset = searchParams?.get('reset')
+      const error = searchParams?.get('error')
+      const errorDescription = searchParams?.get('error_description')
+
+      if (error) {
+        const errorMessage = errorDescription || error || 'Authentication failed'
+        setError(errorMessage)
+      } else if (confirmed === 'true') {
+        setSuccessMessage('Email confirmed successfully! You can now sign in.')
+      } else if (reset === 'success') {
+        setSuccessMessage(
+          'Password reset successfully! You can now sign in with your new password.'
+        )
       }
     }
 
-    // Run on initial load
     handleUrlChange()
+    window.addEventListener('hashchange', handleUrlChange)
 
-    // Listen for hash changes
-    window.addEventListener('hashchange', handleUrlChange, false)
-
-    // Cleanup
     return () => {
-      window.removeEventListener('hashchange', handleUrlChange, false)
+      window.removeEventListener('hashchange', handleUrlChange)
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [searchParams])
 
   async function handleOAuthCallback() {
     try {
@@ -85,7 +82,6 @@ function SignInContent() {
 
         // Redirect to home
         router.push('/')
-        router.refresh()
       } else {
         // No tokens found in hash
         console.error('No tokens found in OAuth callback')
