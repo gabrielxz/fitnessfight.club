@@ -309,7 +309,29 @@ fitnessfight.club/
 
 ## Setup Requirements
 
-### Strava App Configuration
+### OAuth App Configuration
+
+#### Google OAuth
+
+1. Use Google Cloud Console to manage OAuth credentials
+2. CDK creates secrets with placeholder values that must be manually updated
+3. After deployment, update the Google OAuth client secret in AWS Secrets Manager:
+
+   ```bash
+   # For dev environment
+   aws secretsmanager put-secret-value \
+     --secret-id fitnessfight-club-google-client-secret-dev \
+     --secret-string "YOUR_ACTUAL_GOOGLE_CLIENT_SECRET" \
+     --region us-east-1
+
+   # For prod environment
+   aws secretsmanager put-secret-value \
+     --secret-id fitnessfight-club-google-client-secret-prod \
+     --secret-string "YOUR_ACTUAL_GOOGLE_CLIENT_SECRET" \
+     --region us-east-1
+   ```
+
+#### Strava OAuth
 
 1. Create a Strava app at https://www.strava.com/settings/api
 2. Set Authorization Callback Domain to your base domain (e.g., `fitnessfight.club` for prod)
@@ -320,7 +342,9 @@ fitnessfight.club/
 ### First-Time Deployment
 
 1. Deploy infrastructure: `cd infrastructure && npm run deploy -- --context environment=dev`
-2. Update Secrets Manager with Strava credentials (see above)
+2. Update Secrets Manager with OAuth credentials:
+   - Google OAuth client secret (see Google OAuth section above)
+   - Strava OAuth credentials (see Strava OAuth section above)
 3. Copy CDK output values to `frontend/.env.local`:
    - User Pool ID
    - User Pool Client ID
@@ -337,6 +361,7 @@ fitnessfight.club/
 - **CDK Deprecation warnings**: Use `pointInTimeRecoverySpecification` instead of `pointInTimeRecovery` for DynamoDB
 - **Conventional commits**: Removed - no longer enforced by Husky
 - **Strava OAuth errors**: Check callback domain configuration and ensure secrets are updated in AWS
+- **Google OAuth errors**: Ensure the Google client secret has been manually updated in AWS Secrets Manager after CDK deployment
 - **Cognito errors**: Ensure environment variables are set in `.env.local` from CDK outputs
 - **Auth state lost after redirect**: Tokens are now stored in localStorage (fixed)
 - **Lambda missing dependencies**: Use NodejsFunction for automatic bundling
