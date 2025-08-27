@@ -1,6 +1,5 @@
 import {
   signUp,
-  signIn,
   signOut,
   confirmSignUpCode,
   resendConfirmationCode,
@@ -16,9 +15,6 @@ jest.mock('@/lib/cognito-client', () => ({
     send: jest.fn(),
   },
   CLIENT_ID: 'test-client-id',
-  getAuthTokens: jest.fn(),
-  setAuthTokens: jest.fn(),
-  clearAuthTokens: jest.fn(),
 }))
 
 describe('Auth Functions', () => {
@@ -26,6 +22,8 @@ describe('Auth Functions', () => {
     jest.clearAllMocks()
     jest.spyOn(console, 'error').mockImplementation(() => {})
     jest.spyOn(console, 'log').mockImplementation(() => {})
+    // Mock fetch for API calls
+    global.fetch = jest.fn()
   })
 
   afterEach(() => {
@@ -72,81 +70,35 @@ describe('Auth Functions', () => {
     })
   })
 
-  describe('signIn', () => {
-    it('should successfully sign in a user', async () => {
-      const mockResponse = {
-        AuthenticationResult: {
-          AccessToken: 'access-token',
-          IdToken: 'id-token',
-          RefreshToken: 'refresh-token',
-        },
-      }
-      ;(cognitoClient.send as jest.Mock).mockResolvedValue(mockResponse)
-
-      const result = await signIn({
-        email: 'test@example.com',
-        password: 'TestPass123!',
-      })
-
-      expect(result).toEqual({
-        success: true,
-        isSignedIn: true,
-      })
-    })
-
-    it('should handle sign in errors', async () => {
-      const error = new Error('Incorrect username or password')
-      ;(cognitoClient.send as jest.Mock).mockRejectedValue(error)
-
-      const result = await signIn({
-        email: 'test@example.com',
-        password: 'WrongPass',
-      })
-
-      expect(result).toEqual({
-        success: false,
-        error: 'Incorrect username or password',
-      })
-    })
-
-    it('should handle MFA challenge', async () => {
-      const mockResponse = {
-        ChallengeName: 'SMS_MFA',
-      }
-      ;(cognitoClient.send as jest.Mock).mockResolvedValue(mockResponse)
-
-      const result = await signIn({
-        email: 'test@example.com',
-        password: 'TestPass123!',
-      })
-
-      expect(result).toEqual({
-        success: false,
-        isSignedIn: false,
-        nextStep: { signInStep: 'SMS_MFA' },
-      })
-    })
-  })
-
   describe('signOut', () => {
     it('should successfully sign out a user', async () => {
-      ;(cognitoClient.send as jest.Mock).mockResolvedValue({})
+      ;(global.fetch as jest.Mock).mockResolvedValue({
+        ok: true,
+        json: async () => ({ success: true }),
+      })
 
       const result = await signOut()
 
       expect(result).toEqual({
         success: true,
       })
+      expect(global.fetch).toHaveBeenCalledWith(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/v1/auth/logout`,
+        {
+          method: 'POST',
+          credentials: 'include',
+        }
+      )
     })
 
     it('should handle sign out errors gracefully', async () => {
-      const error = new Error('Network error')
-      ;(cognitoClient.send as jest.Mock).mockRejectedValue(error)
+      ;(global.fetch as jest.Mock).mockRejectedValue(new Error('Network error'))
 
       const result = await signOut()
 
       expect(result).toEqual({
-        success: true, // Still returns success even on error
+        success: false,
+        error: 'Failed to sign out',
       })
     })
   })
@@ -381,9 +333,6 @@ describe('Auth Functions', () => {
           send: jest.fn(),
         },
         CLIENT_ID: undefined,
-        getAuthTokens: jest.fn(),
-        setAuthTokens: jest.fn(),
-        clearAuthTokens: jest.fn(),
       }))
 
       const { federatedSignIn: federatedSignInWithoutClient } = await import('@/lib/auth')

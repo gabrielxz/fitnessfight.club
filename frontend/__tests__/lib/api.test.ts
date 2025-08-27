@@ -1,10 +1,8 @@
 import { fetchWeeklyStats, checkStravaConnection } from '@/lib/api'
 import { getConfig } from '@/lib/config'
-import { getAuthTokens } from '@/lib/cognito-client'
 
 // Mock dependencies
 jest.mock('@/lib/config')
-jest.mock('@/lib/cognito-client')
 
 // Mock fetch
 global.fetch = jest.fn()
@@ -26,7 +24,6 @@ describe('API Client Functions', () => {
 
   describe('fetchWeeklyStats', () => {
     it('should fetch weekly stats successfully', async () => {
-      const mockToken = 'test-id-token'
       const mockStats = {
         success: true,
         userId: '12345',
@@ -36,9 +33,6 @@ describe('API Client Functions', () => {
         activities: [],
       }
 
-      ;(getAuthTokens as jest.Mock).mockReturnValue({
-        IdToken: mockToken,
-      })
       ;(global.fetch as jest.Mock).mockResolvedValueOnce({
         ok: true,
         json: async () => mockStats,
@@ -48,31 +42,11 @@ describe('API Client Functions', () => {
 
       expect(result).toEqual(mockStats)
       expect(global.fetch).toHaveBeenCalledWith(
-        'https://api.test.com/api/v1/users/12345/weekly-stats',
-        {
-          headers: {
-            Authorization: `Bearer ${mockToken}`,
-          },
-        }
+        'https://api.test.com/api/v1/users/12345/weekly-stats'
       )
     })
 
-    it('should return null when no auth token is available', async () => {
-      ;(getAuthTokens as jest.Mock).mockReturnValue({
-        IdToken: null,
-      })
-
-      const result = await fetchWeeklyStats('12345')
-
-      expect(result).toBeNull()
-      expect(global.fetch).not.toHaveBeenCalled()
-      expect(console.error).toHaveBeenCalledWith('No auth token available')
-    })
-
     it('should handle 401 unauthorized response', async () => {
-      ;(getAuthTokens as jest.Mock).mockReturnValue({
-        IdToken: 'test-token',
-      })
       ;(global.fetch as jest.Mock).mockResolvedValueOnce({
         ok: false,
         status: 401,
@@ -85,9 +59,6 @@ describe('API Client Functions', () => {
     })
 
     it('should handle 403 forbidden response', async () => {
-      ;(getAuthTokens as jest.Mock).mockReturnValue({
-        IdToken: 'test-token',
-      })
       ;(global.fetch as jest.Mock).mockResolvedValueOnce({
         ok: false,
         status: 403,
@@ -100,9 +71,6 @@ describe('API Client Functions', () => {
     })
 
     it('should handle other error responses', async () => {
-      ;(getAuthTokens as jest.Mock).mockReturnValue({
-        IdToken: 'test-token',
-      })
       ;(global.fetch as jest.Mock).mockResolvedValueOnce({
         ok: false,
         status: 500,
@@ -115,10 +83,6 @@ describe('API Client Functions', () => {
     })
 
     it('should handle network errors', async () => {
-      ;(getAuthTokens as jest.Mock).mockReturnValue({
-        IdToken: 'test-token',
-      })
-
       const networkError = new Error('Network error')
       ;(global.fetch as jest.Mock).mockRejectedValueOnce(networkError)
 
@@ -129,9 +93,6 @@ describe('API Client Functions', () => {
     })
 
     it('should handle different user IDs', async () => {
-      ;(getAuthTokens as jest.Mock).mockReturnValue({
-        IdToken: 'test-token',
-      })
       ;(global.fetch as jest.Mock).mockResolvedValueOnce({
         ok: true,
         json: async () => ({ success: true }),
@@ -140,15 +101,13 @@ describe('API Client Functions', () => {
       await fetchWeeklyStats('user-123-456')
 
       expect(global.fetch).toHaveBeenCalledWith(
-        'https://api.test.com/api/v1/users/user-123-456/weekly-stats',
-        expect.any(Object)
+        'https://api.test.com/api/v1/users/user-123-456/weekly-stats'
       )
     })
   })
 
   describe('checkStravaConnection', () => {
     it('should return connected status when user has Strava connected', async () => {
-      const mockToken = 'test-id-token'
       const mockUserResponse = {
         success: true,
         user: {
@@ -160,9 +119,6 @@ describe('API Client Functions', () => {
         cognitoId: 'cognito-123',
       }
 
-      ;(getAuthTokens as jest.Mock).mockReturnValue({
-        IdToken: mockToken,
-      })
       ;(global.fetch as jest.Mock).mockResolvedValueOnce({
         ok: true,
         json: async () => mockUserResponse,
@@ -174,11 +130,7 @@ describe('API Client Functions', () => {
         connected: true,
         athleteId: '12345',
       })
-      expect(global.fetch).toHaveBeenCalledWith('https://api.test.com/api/v1/users', {
-        headers: {
-          Authorization: `Bearer ${mockToken}`,
-        },
-      })
+      expect(global.fetch).toHaveBeenCalledWith('https://api.test.com/api/v1/users')
     })
 
     it('should return not connected when user has no Strava ID', async () => {
@@ -193,9 +145,6 @@ describe('API Client Functions', () => {
         cognitoId: 'cognito-123',
       }
 
-      ;(getAuthTokens as jest.Mock).mockReturnValue({
-        IdToken: 'test-token',
-      })
       ;(global.fetch as jest.Mock).mockResolvedValueOnce({
         ok: true,
         json: async () => mockUserResponse,
@@ -215,9 +164,6 @@ describe('API Client Functions', () => {
         cognitoId: 'cognito-123',
       }
 
-      ;(getAuthTokens as jest.Mock).mockReturnValue({
-        IdToken: 'test-token',
-      })
       ;(global.fetch as jest.Mock).mockResolvedValueOnce({
         ok: true,
         json: async () => mockUserResponse,
@@ -230,21 +176,7 @@ describe('API Client Functions', () => {
       })
     })
 
-    it('should return null when no auth token is available', async () => {
-      ;(getAuthTokens as jest.Mock).mockReturnValue({
-        IdToken: null,
-      })
-
-      const result = await checkStravaConnection()
-
-      expect(result).toBeNull()
-      expect(global.fetch).not.toHaveBeenCalled()
-    })
-
     it('should return not connected when API call fails', async () => {
-      ;(getAuthTokens as jest.Mock).mockReturnValue({
-        IdToken: 'test-token',
-      })
       ;(global.fetch as jest.Mock).mockResolvedValueOnce({
         ok: false,
         status: 401,
@@ -258,10 +190,6 @@ describe('API Client Functions', () => {
     })
 
     it('should handle network errors', async () => {
-      ;(getAuthTokens as jest.Mock).mockReturnValue({
-        IdToken: 'test-token',
-      })
-
       const networkError = new Error('Network error')
       ;(global.fetch as jest.Mock).mockRejectedValueOnce(networkError)
 
@@ -272,9 +200,6 @@ describe('API Client Functions', () => {
     })
 
     it('should handle missing response fields gracefully', async () => {
-      ;(getAuthTokens as jest.Mock).mockReturnValue({
-        IdToken: 'test-token',
-      })
       ;(global.fetch as jest.Mock).mockResolvedValueOnce({
         ok: true,
         json: async () => ({}), // Empty response
@@ -291,9 +216,6 @@ describe('API Client Functions', () => {
       ;(getConfig as jest.Mock).mockReturnValue({
         apiUrl: 'https://different-api.com/api/v2',
       })
-      ;(getAuthTokens as jest.Mock).mockReturnValue({
-        IdToken: 'test-token',
-      })
       ;(global.fetch as jest.Mock).mockResolvedValueOnce({
         ok: true,
         json: async () => ({ user: { stravaId: '123', userId: '123' } }),
@@ -301,35 +223,12 @@ describe('API Client Functions', () => {
 
       await checkStravaConnection()
 
-      expect(global.fetch).toHaveBeenCalledWith(
-        'https://different-api.com/api/v2/users',
-        expect.any(Object)
-      )
+      expect(global.fetch).toHaveBeenCalledWith('https://different-api.com/api/v2/users')
     })
   })
 
   describe('Edge Cases', () => {
-    it('should handle undefined token gracefully in fetchWeeklyStats', async () => {
-      ;(getAuthTokens as jest.Mock).mockReturnValue({})
-
-      const result = await fetchWeeklyStats('12345')
-
-      expect(result).toBeNull()
-      expect(console.error).toHaveBeenCalledWith('No auth token available')
-    })
-
-    it('should handle undefined token gracefully in checkStravaConnection', async () => {
-      ;(getAuthTokens as jest.Mock).mockReturnValue({})
-
-      const result = await checkStravaConnection()
-
-      expect(result).toBeNull()
-    })
-
     it('should handle malformed JSON response in fetchWeeklyStats', async () => {
-      ;(getAuthTokens as jest.Mock).mockReturnValue({
-        IdToken: 'test-token',
-      })
       ;(global.fetch as jest.Mock).mockResolvedValueOnce({
         ok: true,
         json: async () => {
@@ -344,9 +243,6 @@ describe('API Client Functions', () => {
     })
 
     it('should handle malformed JSON response in checkStravaConnection', async () => {
-      ;(getAuthTokens as jest.Mock).mockReturnValue({
-        IdToken: 'test-token',
-      })
       ;(global.fetch as jest.Mock).mockResolvedValueOnce({
         ok: true,
         json: async () => {

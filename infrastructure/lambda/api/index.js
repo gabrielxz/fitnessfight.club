@@ -354,6 +354,166 @@ exports.handler = async (event) => {
     }
   }
 
+  // Handle Google OAuth callback - exchange authorization code for tokens
+  if (path === '/api/v1/auth/google/callback' && httpMethod === 'GET') {
+    const code = queryStringParameters?.code
+    const state = queryStringParameters?.state
+    const error = queryStringParameters?.error
+
+    // Handle user denial
+    if (error) {
+      console.log('User denied Google authorization:', error)
+      return {
+        statusCode: 302,
+        headers: {
+          Location: `${process.env.FRONTEND_URL}/signin?error=authorization_denied`,
+        },
+      }
+    }
+
+    if (!code) {
+      return {
+        statusCode: 302,
+        headers: {
+          Location: `${process.env.FRONTEND_URL}/signin?error=no_code`,
+        },
+      }
+    }
+
+    try {
+      // Get Google client secret from Secrets Manager
+      const googleClientSecret = await getSecretValue(process.env.GOOGLE_CLIENT_SECRET_NAME)
+      
+      // Exchange code for tokens with Cognito
+      const cognitoDomain = process.env.COGNITO_DOMAIN
+      const clientId = process.env.USER_POOL_CLIENT_ID
+      const redirectUri = `${process.env.API_URL}/api/v1/auth/google/callback`
+      
+      const tokenUrl = `https://${cognitoDomain}/oauth2/token`
+      const params = new URLSearchParams()
+      params.append('grant_type', 'authorization_code')
+      params.append('client_id', clientId)
+      params.append('code', code)
+      params.append('redirect_uri', redirectUri)
+      
+      const tokenResponse = await fetch(tokenUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Authorization': `Basic ${Buffer.from(`${clientId}:${googleClientSecret}`).toString('base64')}`,
+        },
+        body: params.toString(),
+      })
+      
+      const tokens = await tokenResponse.json()
+      
+      if (!tokenResponse.ok) {
+        throw new Error(tokens.error_description || 'Failed to fetch tokens')
+      }
+      
+      // Set secure httpOnly cookies and redirect
+      const cookieOptions = [
+        `access_token=${tokens.access_token}; HttpOnly; Secure; Path=/; Max-Age=${tokens.expires_in || 3600}; SameSite=Lax`,
+        `id_token=${tokens.id_token}; HttpOnly; Secure; Path=/; Max-Age=${tokens.expires_in || 3600}; SameSite=Lax`,
+      ]
+      
+      if (tokens.refresh_token) {
+        cookieOptions.push(`refresh_token=${tokens.refresh_token}; HttpOnly; Secure; Path=/; SameSite=Lax`)
+      }
+      
+      return {
+        statusCode: 302,
+        headers: {
+          Location: process.env.FRONTEND_URL || '/',
+          'Set-Cookie': cookieOptions,
+        },
+        multiValueHeaders: {
+          'Set-Cookie': cookieOptions,
+        },
+      }
+    } catch (error) {
+      console.error('Error exchanging Google code for tokens:', error)
+      return {
+        statusCode: 302,
+        headers: {
+          Location: `${process.env.FRONTEND_URL}/signin?error=${encodeURIComponent(error.message)}`,
+        },
+      }
+    }
+  }
+
+  // Handle getting current user from cookies
+  if (path === '/api/v1/auth/user' && httpMethod === 'GET') {
+    try {
+      // Parse cookies from the request
+      const cookieHeader = headers.cookie || headers.Cookie || ''
+      const cookies = {}
+      cookieHeader.split(';').forEach(cookie => {
+        const [key, value] = cookie.trim().split('=')
+        if (key && value) {
+          cookies[key] = value
+        }
+      })
+      
+      const accessToken = cookies.access_token
+      
+      if (!accessToken) {
+        return {
+          statusCode: 401,
+          headers: corsHeaders,
+          body: JSON.stringify({ error: 'No authentication token found' }),
+        }
+      }
+      
+      // Get user info from Cognito using the access token
+      const { CognitoIdentityProviderClient, GetUserCommand } = require('@aws-sdk/client-cognito-identity-provider')
+      const cognitoClient = new CognitoIdentityProviderClient({ region: process.env.REGION || 'us-east-1' })
+      
+      const getUserCommand = new GetUserCommand({
+        AccessToken: accessToken,
+      })
+      
+      const userResponse = await cognitoClient.send(getUserCommand)
+      
+      return {
+        statusCode: 200,
+        headers: corsHeaders,
+        body: JSON.stringify({
+          Username: userResponse.Username,
+          UserAttributes: userResponse.UserAttributes,
+        }),
+      }
+    } catch (error) {
+      console.error('Error getting user:', error)
+      return {
+        statusCode: 401,
+        headers: corsHeaders,
+        body: JSON.stringify({ error: 'Invalid or expired token' }),
+      }
+    }
+  }
+
+  // Handle logout - clear cookies
+  if (path === '/api/v1/auth/logout' && httpMethod === 'POST') {
+    const cookieOptions = [
+      'access_token=; HttpOnly; Secure; Path=/; Max-Age=0; SameSite=Lax',
+      'id_token=; HttpOnly; Secure; Path=/; Max-Age=0; SameSite=Lax',
+      'refresh_token=; HttpOnly; Secure; Path=/; Max-Age=0; SameSite=Lax',
+    ]
+    
+    return {
+      statusCode: 200,
+      headers: {
+        ...corsHeaders,
+        'Set-Cookie': cookieOptions,
+      },
+      multiValueHeaders: {
+        'Set-Cookie': cookieOptions,
+      },
+      body: JSON.stringify({ success: true, message: 'Logged out successfully' }),
+    }
+  }
+
   // Handle Strava OAuth initiation (requires authentication)
   if (path === '/api/v1/auth/strava' && httpMethod === 'GET') {
     // Apply rate limiting
@@ -836,6 +996,126 @@ exports.handler = async (event) => {
         headers: corsHeaders,
         body: JSON.stringify({ error: 'Failed to process webhook event' }),
       }
+    }
+  }
+
+  // Handle Google OAuth callback
+  if (path === '/api/v1/auth/google/callback' && httpMethod === 'GET') {
+    const code = queryStringParameters?.code
+
+    if (!code) {
+      return {
+        statusCode: 302,
+        headers: {
+          Location: `${process.env.FRONTEND_URL}/signin?error=No authorization code found.`,
+        },
+      }
+    }
+
+    try {
+      const googleClientSecret = await getSecretValue(process.env.GOOGLE_CLIENT_SECRET_NAME)
+      const cognitoDomain = `https://fitnessfight-club-${process.env.ENVIRONMENT}.auth.us-east-1.amazoncognito.com`
+
+      const tokenUrl = `${cognitoDomain}/oauth2/token`
+      const redirectUri = `${process.env.API_BASE_URL}/api/v1/auth/google/callback`
+
+      const params = new URLSearchParams()
+      params.append('grant_type', 'authorization_code')
+      params.append('client_id', process.env.USER_POOL_CLIENT_ID)
+      params.append('code', code)
+      params.append('redirect_uri', redirectUri)
+
+      const response = await fetch(tokenUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          Authorization: `Basic ${Buffer.from(
+            `${process.env.USER_POOL_CLIENT_ID}:${googleClientSecret}`
+          ).toString('base64')}`,
+        },
+        body: params,
+      })
+
+      const tokens = await response.json()
+
+      if (!response.ok) {
+        throw new Error(tokens.error_description || 'Failed to fetch tokens')
+      }
+
+      const cookies = []
+      cookies.push(`access_token=${tokens.access_token}; HttpOnly; Secure; Path=/; Max-Age=${tokens.expires_in}`)
+      cookies.push(`id_token=${tokens.id_token}; HttpOnly; Secure; Path=/; Max-Age=${tokens.expires_in}`)
+      if (tokens.refresh_token) {
+        cookies.push(`refresh_token=${tokens.refresh_token}; HttpOnly; Secure; Path=/;`)
+      }
+
+      return {
+        statusCode: 302,
+        headers: {
+          Location: process.env.FRONTEND_URL,
+          'Set-Cookie': cookies,
+        },
+      }
+    } catch (error) {
+      console.error('Error exchanging code for tokens:', error)
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      return {
+        statusCode: 302,
+        headers: {
+          Location: `${process.env.FRONTEND_URL}/signin?error=Authentication failed: ${errorMessage}`,
+        },
+      }
+    }
+  }
+
+  // Handle get current user from cookie
+  if (path === '/api/v1/auth/user' && httpMethod === 'GET') {
+    try {
+      const cookies = event.headers.Cookie || ''
+      const accessToken = cookies.split(';').find(c => c.trim().startsWith('access_token='))?.split('=')[1]
+
+      if (!accessToken) {
+        return {
+          statusCode: 401,
+          headers: corsHeaders,
+          body: JSON.stringify({ error: 'Not authenticated' }),
+        }
+      }
+
+      const { CognitoIdentityProviderClient, GetUserCommand } = require('@aws-sdk/client-cognito-identity-provider')
+      const cognitoClient = new CognitoIdentityProviderClient({ region: process.env.REGION })
+      const command = new GetUserCommand({ AccessToken: accessToken })
+      const response = await cognitoClient.send(command)
+
+      return {
+        statusCode: 200,
+        headers: corsHeaders,
+        body: JSON.stringify(response),
+      }
+    } catch (error) {
+      console.error('Error getting user from cookie:', error)
+      return {
+        statusCode: 401,
+        headers: corsHeaders,
+        body: JSON.stringify({ error: 'Not authenticated' }),
+      }
+    }
+  }
+
+  // Handle logout
+  if (path === '/api/v1/auth/logout' && httpMethod === 'POST') {
+    const cookies = []
+    cookies.push('access_token=; HttpOnly; Secure; Path=/; Max-Age=0')
+    cookies.push('id_token=; HttpOnly; Secure; Path=/; Max-Age=0')
+    cookies.push('refresh_token=; HttpOnly; Secure; Path=/; Max-Age=0')
+
+    return {
+      statusCode: 200,
+      headers: {
+        ...corsHeaders,
+        'Set-Cookie': cookies,
+      },
+      body: JSON.stringify({ message: 'Logged out' }),
     }
   }
 

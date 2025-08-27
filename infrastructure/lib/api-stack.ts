@@ -59,6 +59,13 @@ export class ApiStack extends Construct {
       secretStringValue: cdk.SecretValue.unsafePlainText('PLACEHOLDER_CLIENT_SECRET'),
     })
 
+    // Reference existing Google client secret
+    const googleClientSecret = secretsmanager.Secret.fromSecretNameV2(
+      this,
+      'GoogleClientSecret',
+      `fitnessfight-club-google-client-secret-${environment}`
+    )
+
     // Generate a secure webhook verification token
     this.webhookVerifyToken = `fitnessfight-webhook-${environment}-${Math.random().toString(36).substring(2, 15)}`
 
@@ -78,6 +85,7 @@ export class ApiStack extends Construct {
           '@aws-sdk/client-dynamodb',
           '@aws-sdk/lib-dynamodb',
           '@aws-sdk/client-secrets-manager',
+          '@aws-sdk/client-cognito-identity-provider',
           'date-fns',
         ],
       },
@@ -96,6 +104,8 @@ export class ApiStack extends Construct {
         STRAVA_CLIENT_ID_SECRET_NAME: stravaClientIdSecret.secretName,
         STRAVA_CLIENT_SECRET_SECRET_NAME: stravaClientSecretSecret.secretName,
         STRAVA_WEBHOOK_VERIFY_TOKEN: this.webhookVerifyToken,
+        GOOGLE_CLIENT_SECRET_NAME: googleClientSecret.secretName,
+        COGNITO_DOMAIN: `fitnessfight-club-${environment}.auth.${cdk.Stack.of(this).region}.amazoncognito.com`,
       },
       timeout: cdk.Duration.seconds(30),
       memorySize: 256,
@@ -109,6 +119,7 @@ export class ApiStack extends Construct {
     // Grant Lambda permissions to read Secrets Manager secrets
     stravaClientIdSecret.grantRead(this.apiFunction)
     stravaClientSecretSecret.grantRead(this.apiFunction)
+    googleClientSecret.grantRead(this.apiFunction)
 
     // Import the hosted zone
     const hostedZone = route53.HostedZone.fromHostedZoneAttributes(this, 'HostedZone', {
@@ -217,8 +228,14 @@ export class ApiStack extends Construct {
     const auth = v1.addResource('auth')
     const stravaAuth = auth.addResource('strava')
     stravaAuth.addMethod('GET', integration) // Initiate OAuth flow
-    const stravaCallback = stravaAuth.addResource('callback')
-    stravaCallback.addMethod('GET', integration) // Handle OAuth callback
+    const googleCallback = googleAuth.addResource('callback')
+    googleCallback.addMethod('GET', integration) // Handle Google OAuth callback
+
+    const user = auth.addResource('user')
+    user.addMethod('GET', integration) // Get current user from cookie
+
+    const logout = auth.addResource('logout')
+    logout.addMethod('POST', integration) // Clear auth cookies
 
     // Map custom domain to API
     new apigateway.BasePathMapping(this, 'ApiDomainMapping', {

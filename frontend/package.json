@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-cognito-identity-provider": "^3.873.0",
+    "@aws-sdk/client-secrets-manager": "^3.876.0",
     "@radix-ui/react-label": "^2.1.7",
     "@radix-ui/react-slot": "^1.2.3",
     "class-variance-authority": "^0.7.1",

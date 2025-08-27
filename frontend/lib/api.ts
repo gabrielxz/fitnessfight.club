@@ -1,5 +1,4 @@
 import { getConfig } from '@/lib/config'
-import { getAuthTokens } from '@/lib/cognito-client'
 
 export interface WeeklyStats {
   success: boolean
@@ -23,19 +22,8 @@ export interface WeeklyStats {
 export async function fetchWeeklyStats(userId: string): Promise<WeeklyStats | null> {
   try {
     const config = getConfig()
-    const tokens = getAuthTokens()
-    const token = tokens.IdToken
 
-    if (!token) {
-      console.error('No auth token available')
-      return null
-    }
-
-    const response = await fetch(`${config.apiUrl}/users/${userId}/weekly-stats`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    })
+    const response = await fetch(`${config.apiUrl}/users/${userId}/weekly-stats`)
 
     if (!response.ok) {
       if (response.status === 401) {
@@ -65,18 +53,8 @@ export async function checkStravaConnection(): Promise<{
 } | null> {
   try {
     const config = getConfig()
-    const tokens = getAuthTokens()
-    const token = tokens.IdToken
 
-    if (!token) {
-      return null
-    }
-
-    const response = await fetch(`${config.apiUrl}/users`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    })
+    const response = await fetch(`${config.apiUrl}/users`)
 
     if (response.ok) {
       const data = await response.json()

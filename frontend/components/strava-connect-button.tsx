@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react'
 import { getConfig } from '@/lib/config'
-import { getAuthTokens } from '@/lib/cognito-client'
 
 export function StravaConnectButton() {
   const [isLoading, setIsLoading] = useState(false)
@@ -18,20 +17,9 @@ export function StravaConnectButton() {
   const checkStravaConnection = async () => {
     try {
       const config = getConfig()
-      const tokens = getAuthTokens()
-      const token = tokens.IdToken
-
-      if (!token) {
-        setCheckingStatus(false)
-        return
-      }
 
       // Check connection status
-      const response = await fetch(`${config.apiUrl}/auth/strava`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      })
+      const response = await fetch(`${config.apiUrl}/auth/strava`)
 
       if (response.ok) {
         const data = await response.json()
@@ -51,20 +39,8 @@ export function StravaConnectButton() {
     try {
       const config = getConfig()
 
-      // Get the auth token
-      const tokens = getAuthTokens()
-      const token = tokens.IdToken
-
-      if (!token) {
-        throw new Error('You must be signed in to connect Strava')
-      }
-
       // Fetch the authorization URL from our backend
-      const response = await fetch(`${config.apiUrl}/auth/strava`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      })
+      const response = await fetch(`${config.apiUrl}/auth/strava`)
 
       if (!response.ok) {
         throw new Error('Failed to get authorization URL')

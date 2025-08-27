@@ -1,21 +1,11 @@
 import {
   SignUpCommand,
   ConfirmSignUpCommand,
-  InitiateAuthCommand,
   ForgotPasswordCommand,
   ConfirmForgotPasswordCommand,
-  GlobalSignOutCommand,
-  GetUserCommand,
   ResendConfirmationCodeCommand,
-  AuthFlowType,
 } from '@aws-sdk/client-cognito-identity-provider'
-import {
-  cognitoClient,
-  CLIENT_ID,
-  getAuthTokens,
-  setAuthTokens,
-  clearAuthTokens,
-} from './cognito-client'
+import { cognitoClient, CLIENT_ID } from './cognito-client'
 
 export interface AuthUser {
   userId: string
@@ -28,11 +18,6 @@ export interface SignUpParams {
   email: string
   password: string
   fullName?: string // Make optional for now
-}
-
-export interface SignInParams {
-  email: string
-  password: string
 }
 
 // Client-side auth functions
@@ -73,83 +58,6 @@ export async function signUp({ email, password }: SignUpParams): Promise<{
       success: false,
       error: errorMessage,
     }
-  }
-}
-
-export async function signIn({ email, password }: SignInParams): Promise<{
-  success: boolean
-  isSignedIn?: boolean
-  nextStep?: { signInStep: string }
-  error?: string
-}> {
-  try {
-    const command = new InitiateAuthCommand({
-      ClientId: CLIENT_ID,
-      AuthFlow: AuthFlowType.USER_PASSWORD_AUTH,
-      AuthParameters: {
-        USERNAME: email,
-        PASSWORD: password,
-      },
-    })
-
-    const response = await cognitoClient.send(command)
-
-    if (response.ChallengeName) {
-      // Handle MFA or other challenges if needed
-      return {
-        success: false,
-        isSignedIn: false,
-        nextStep: { signInStep: response.ChallengeName },
-      }
-    }
-
-    if (response.AuthenticationResult) {
-      // Store tokens
-      setAuthTokens({
-        AccessToken: response.AuthenticationResult.AccessToken,
-        IdToken: response.AuthenticationResult.IdToken,
-        RefreshToken: response.AuthenticationResult.RefreshToken,
-      })
-
-      return {
-        success: true,
-        isSignedIn: true,
-      }
-    }
-
-    return {
-      success: false,
-      error: 'Sign in failed',
-    }
-  } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Invalid email or password'
-    console.error('Sign in error:', errorMessage)
-    return {
-      success: false,
-      error: errorMessage,
-    }
-  }
-}
-
-export async function signOut(): Promise<{
-  success: boolean
-  error?: string
-}> {
-  try {
-    const tokens = getAuthTokens()
-    if (tokens.AccessToken) {
-      const command = new GlobalSignOutCommand({
-        AccessToken: tokens.AccessToken,
-      })
-      await cognitoClient.send(command)
-    }
-    clearAuthTokens()
-    return { success: true }
-  } catch (error) {
-    console.error('Sign out error:', error instanceof Error ? error.message : error)
-    // Clear tokens even if sign out fails
-    clearAuthTokens()
-    return { success: true }
   }
 }
 
@@ -253,29 +161,43 @@ export async function confirmPasswordReset(
   }
 }
 
+export async function signOut(): Promise<{ success: boolean; error?: string }> {
+  try {
+    await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/auth/logout`, {
+      method: 'POST',
+      credentials: 'include',
+    })
+    return { success: true }
+  } catch (error) {
+    console.error('Sign out error:', error)
+    return { success: false, error: 'Failed to sign out' }
+  }
+}
+
 export async function getCurrentUser(): Promise<AuthUser | null> {
   try {
-    const tokens = getAuthTokens()
-    if (!tokens.AccessToken) {
+    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/auth/user`, {
+      credentials: 'include',
+    })
+    if (!response.ok) {
       return null
     }
+    const user = await response.json()
 
-    const command = new GetUserCommand({
-      AccessToken: tokens.AccessToken,
-    })
+    const emailAttr = user.UserAttributes?.find(
+      (attr: { Name: string; Value: string }) => attr.Name === 'email'
+    )
+    const subAttr = user.UserAttributes?.find(
+      (attr: { Name: string; Value: string }) => attr.Name === 'sub'
+    )
 
-    const response = await cognitoClient.send(command)
-
-    const emailAttr = response.UserAttributes?.find((attr) => attr.Name === 'email')
-    const subAttr = response.UserAttributes?.find((attr) => attr.Name === 'sub')
-
-    if (!response.Username || !subAttr?.Value) {
+    if (!user.Username || !subAttr?.Value) {
       return null
     }
 
     return {
-      userId: response.Username,
-      username: response.Username,
+      userId: user.Username,
+      username: user.Username,
       email: emailAttr?.Value,
       cognitoId: subAttr.Value,
     }
@@ -303,22 +225,16 @@ export async function federatedSignIn(provider: 'Google'): Promise<void> {
   const cognitoDomain = `fitnessfight-club-${environment}`
   const region = 'us-east-1'
 
-  // Determine redirect URI based on current location
-  const redirectUri =
-    typeof window !== 'undefined'
-      ? `${window.location.origin}/signin`
-      : environment === 'prod'
-        ? 'https://fitnessfight.club/signin'
-        : 'https://dev.fitnessfight.club/signin'
+  // The redirect URI must point to our backend endpoint
+  const redirectUri = `${process.env.NEXT_PUBLIC_API_URL}/api/v1/auth/google/callback`
 
-  // Construct the Cognito Hosted UI URL with Google as identity provider
+  // Construct the Cognito Hosted UI URL
   const cognitoUrl = new URL(
     `https://${cognitoDomain}.auth.${region}.amazoncognito.com/oauth2/authorize`
   )
 
-  // Add OAuth parameters for authorization code flow with implicit fallback
   cognitoUrl.searchParams.append('identity_provider', provider)
-  cognitoUrl.searchParams.append('response_type', 'token') // Using implicit flow for simpler frontend-only auth
+  cognitoUrl.searchParams.append('response_type', 'code') // Use authorization code flow
   cognitoUrl.searchParams.append('client_id', CLIENT_ID)
   cognitoUrl.searchParams.append('redirect_uri', redirectUri)
   cognitoUrl.searchParams.append('scope', 'email openid profile')
@@ -332,8 +248,6 @@ export async function federatedSignIn(provider: 'Google'): Promise<void> {
     })
   )
   cognitoUrl.searchParams.append('state', state)
-
-  console.log('Redirecting to Cognito URL:', cognitoUrl.toString())
 
   // Redirect to Cognito Hosted UI with Google provider
   window.location.href = cognitoUrl.toString()
