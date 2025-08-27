@@ -1,8 +1,6 @@
 import * as cdk from 'aws-cdk-lib'
 import * as cognito from 'aws-cdk-lib/aws-cognito'
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager'
-import * as iam from 'aws-cdk-lib/aws-iam'
-import * as cr from 'aws-cdk-lib/custom-resources'
 import { Construct } from 'constructs'
 
 export interface AuthStackProps {

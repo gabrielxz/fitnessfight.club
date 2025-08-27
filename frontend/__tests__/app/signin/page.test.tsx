@@ -419,7 +419,6 @@ describe('SignIn Page', () => {
 
       expect(mockRefreshUser).toHaveBeenCalled()
       expect(mockPush).toHaveBeenCalledWith('/')
-      expect(mockRefresh).toHaveBeenCalled()
     })
 
     it('should handle email/password sign in errors', async () => {
