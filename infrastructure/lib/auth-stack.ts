@@ -82,23 +82,10 @@ export class AuthStack extends Construct {
         scopes: [cognito.OAuthScope.EMAIL, cognito.OAuthScope.OPENID, cognito.OAuthScope.PROFILE],
         callbackUrls:
           environment === 'prod'
-            ? [
-                'https://api.fitnessfight.club/api/v1/auth/google/callback',
-                'https://fitnessfight.club/api/auth/callback',
-                'https://fitnessfight.club/signin',
-                'https://fitnessfight.club/signup',
-                'http://localhost:3000/api/auth/callback',
-                'http://localhost:3000/signin',
-                'http://localhost:3000/signup',
-              ]
+            ? ['https://fitnessfight.club/auth/callback', 'http://localhost:3000/auth/callback']
             : [
-                'https://api.dev.fitnessfight.club/api/v1/auth/google/callback',
-                'https://dev.fitnessfight.club/api/auth/callback',
-                'https://dev.fitnessfight.club/signin',
-                'https://dev.fitnessfight.club/signup',
-                'http://localhost:3000/api/auth/callback',
-                'http://localhost:3000/signin',
-                'http://localhost:3000/signup',
+                'https://dev.fitnessfight.club/auth/callback',
+                'http://localhost:3000/auth/callback',
               ],
         logoutUrls:
           environment === 'prod'

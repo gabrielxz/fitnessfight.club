@@ -1,24 +1,13 @@
 'use client'
 
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
-import { signOut } from '@/lib/auth'
-import { useAuth } from '@/components/auth-provider'
-import { LogOut, User } from 'lucide-react'
+import { User } from 'lucide-react'
+import { useAuth } from './auth-context'
+import { getCognitoAuthUrl, getCognitoSignOutUrl } from '@/lib/auth-client'
 
 export function Header() {
-  const { user, loading, refreshUser } = useAuth()
-  const router = useRouter()
-
-  async function handleSignOut() {
-    const result = await signOut()
-    if (result.success) {
-      await refreshUser()
-      router.push('/')
-      router.refresh()
-    }
-  }
+  const { isLoggedIn, signOut } = useAuth()
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b">
@@ -29,7 +18,7 @@ export function Header() {
               <span className="text-xl font-bold">Fitness Fight Club</span>
             </Link>
 
-            {user && (
+            {isLoggedIn && (
               <nav className="hidden md:flex items-center space-x-6">
                 <Link
                   href="/dashboard"
@@ -54,31 +43,31 @@ export function Header() {
           </div>
 
           <div className="flex items-center space-x-4">
-            {loading ? (
-              <div className="h-9 w-20 bg-muted animate-pulse rounded-md" />
-            ) : user ? (
+            {isLoggedIn ? (
               <div className="flex items-center space-x-4">
                 <div className="hidden md:flex items-center space-x-2 text-sm">
                   <User className="h-4 w-4" />
-                  <span className="font-medium">{user.email || user.username}</span>
+                  <span className="font-medium">User</span>
                 </div>
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={handleSignOut}
-                  className="flex items-center space-x-2"
+                  onClick={() => {
+                    signOut()
+                    window.location.href = getCognitoSignOutUrl()
+                  }}
                 >
-                  <LogOut className="h-4 w-4" />
-                  <span>Sign Out</span>
+                  Sign Out
                 </Button>
               </div>
             ) : (
               <div className="flex items-center space-x-2">
-                <Button variant="ghost" size="sm" asChild>
-                  <Link href="/signin">Sign In</Link>
-                </Button>
-                <Button size="sm" asChild>
-                  <Link href="/signup">Sign Up</Link>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => (window.location.href = getCognitoAuthUrl())}
+                >
+                  Sign In
                 </Button>
               </div>
             )}

@@ -2,10 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import { fetchWeeklyStats, checkStravaConnection, type WeeklyStats } from '@/lib/api'
-import { useAuth } from '@/components/auth-provider'
 
 export function WeeklyStatsComponent() {
-  const { user } = useAuth()
   const [stats, setStats] = useState<WeeklyStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -13,11 +11,6 @@ export function WeeklyStatsComponent() {
 
   useEffect(() => {
     const loadStats = async () => {
-      if (!user) {
-        setLoading(false)
-        return
-      }
-
       setLoading(true)
       setError(null)
 
@@ -52,12 +45,7 @@ export function WeeklyStatsComponent() {
     }
 
     loadStats()
-  }, [user])
-
-  // Don't show anything if user is not authenticated
-  if (!user) {
-    return null
-  }
+  }, [])
 
   // Loading state
   if (loading) {

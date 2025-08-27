@@ -59,13 +59,6 @@ export class ApiStack extends Construct {
       secretStringValue: cdk.SecretValue.unsafePlainText('PLACEHOLDER_CLIENT_SECRET'),
     })
 
-    // Reference existing Google client secret
-    const googleClientSecret = secretsmanager.Secret.fromSecretNameV2(
-      this,
-      'GoogleClientSecret',
-      `fitnessfight-club-google-client-secret-${environment}`
-    )
-
     // Generate a secure webhook verification token
     this.webhookVerifyToken = `fitnessfight-webhook-${environment}-${Math.random().toString(36).substring(2, 15)}`
 
@@ -104,7 +97,6 @@ export class ApiStack extends Construct {
         STRAVA_CLIENT_ID_SECRET_NAME: stravaClientIdSecret.secretName,
         STRAVA_CLIENT_SECRET_SECRET_NAME: stravaClientSecretSecret.secretName,
         STRAVA_WEBHOOK_VERIFY_TOKEN: this.webhookVerifyToken,
-        GOOGLE_CLIENT_SECRET_NAME: googleClientSecret.secretName,
         COGNITO_DOMAIN: `fitnessfight-club-${environment}.auth.${cdk.Stack.of(this).region}.amazoncognito.com`,
       },
       timeout: cdk.Duration.seconds(30),
@@ -119,7 +111,6 @@ export class ApiStack extends Construct {
     // Grant Lambda permissions to read Secrets Manager secrets
     stravaClientIdSecret.grantRead(this.apiFunction)
     stravaClientSecretSecret.grantRead(this.apiFunction)
-    googleClientSecret.grantRead(this.apiFunction)
 
     // Import the hosted zone
     const hostedZone = route53.HostedZone.fromHostedZoneAttributes(this, 'HostedZone', {

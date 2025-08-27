@@ -12,6 +12,7 @@
     "test": "jest --passWithNoTests"
   },
   "dependencies": {
+    "@auth/core": "^0.40.0",
     "@aws-sdk/client-cognito-identity-provider": "^3.873.0",
     "@aws-sdk/client-secrets-manager": "^3.876.0",
     "@radix-ui/react-label": "^2.1.7",
@@ -20,6 +21,7 @@
     "clsx": "^2.1.1",
     "lucide-react": "^0.540.0",
     "next": "^15.4.7",
+    "next-auth": "^5.0.0-beta.29",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "tailwind-merge": "^3.3.1"
