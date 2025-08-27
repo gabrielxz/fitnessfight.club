@@ -52,8 +52,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     checkUser()
 
-    // For now, we'll remove the Hub listener
-    // You could implement a custom event system or polling if needed
+    const handleTokenChange = () => {
+      checkUser()
+    }
+
+    window.addEventListener('fitnessfight_auth_tokens', handleTokenChange)
+
+    return () => {
+      window.removeEventListener('fitnessfight_auth_tokens', handleTokenChange)
+    }
   }, [])
 
   return (

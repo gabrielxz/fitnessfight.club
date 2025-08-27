@@ -46,6 +46,7 @@ export function setAuthTokens(tokens: AuthTokens) {
 
   try {
     localStorage.setItem(TOKEN_STORAGE_KEY, JSON.stringify(tokens))
+    window.dispatchEvent(new Event(TOKEN_STORAGE_KEY))
   } catch (err) {
     console.error('Error storing auth tokens:', err)
   }
@@ -58,6 +59,7 @@ export function clearAuthTokens() {
 
   try {
     localStorage.removeItem(TOKEN_STORAGE_KEY)
+    window.dispatchEvent(new Event(TOKEN_STORAGE_KEY))
   } catch (err) {
     console.error('Error clearing auth tokens:', err)
   }
