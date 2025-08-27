@@ -11,6 +11,7 @@ import { setAuthTokens } from '@/lib/cognito-client'
 export const dynamic = 'force-dynamic'
 
 function SignInContent() {
+  console.log('Rendering SignInContent')
   const [loading, setLoading] = useState(false)
   const [googleLoading, setGoogleLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
