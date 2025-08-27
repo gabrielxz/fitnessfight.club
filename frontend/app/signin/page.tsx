@@ -20,6 +20,7 @@ function SignInContent() {
   const { refreshUser } = useAuth()
 
   useEffect(() => {
+    console.log('SignInPage loaded. URL:', window.location.href)
     // Check for OAuth callback - tokens come in URL fragment for implicit flow
     const hash = window.location.hash
     const authError = searchParams?.get('error')

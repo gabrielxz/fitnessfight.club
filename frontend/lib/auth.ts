@@ -333,6 +333,8 @@ export async function federatedSignIn(provider: 'Google'): Promise<void> {
   )
   cognitoUrl.searchParams.append('state', state)
 
+  console.log('Redirecting to Cognito URL:', cognitoUrl.toString())
+
   // Redirect to Cognito Hosted UI with Google provider
   window.location.href = cognitoUrl.toString()
 }
