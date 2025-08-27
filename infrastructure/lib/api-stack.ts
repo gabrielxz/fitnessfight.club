@@ -224,16 +224,23 @@ export class ApiStack extends Construct {
     const health = v1.addResource('health')
     health.addMethod('GET', integration)
 
-    // Strava OAuth endpoints
+    // Auth endpoints
     const auth = v1.addResource('auth')
+
+    // Strava OAuth endpoints
     const stravaAuth = auth.addResource('strava')
     stravaAuth.addMethod('GET', integration) // Initiate OAuth flow
+
+    // Google OAuth endpoints
+    const googleAuth = auth.addResource('google')
     const googleCallback = googleAuth.addResource('callback')
     googleCallback.addMethod('GET', integration) // Handle Google OAuth callback
 
+    // User session endpoint
     const user = auth.addResource('user')
     user.addMethod('GET', integration) // Get current user from cookie
 
+    // Logout endpoint
     const logout = auth.addResource('logout')
     logout.addMethod('POST', integration) // Clear auth cookies
 
