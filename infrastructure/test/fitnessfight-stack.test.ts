@@ -163,13 +163,8 @@ describe('FitnessFightStack', () => {
       SupportedIdentityProviders: Match.arrayWith(['COGNITO', 'Google']),
     })
 
-    // Verify the secret exists in Secrets Manager
-    template.hasResource('AWS::SecretsManager::Secret', {
-      Properties: {
-        Name: 'fitnessfight-club-google-client-secret-dev',
-        Description: 'Google OAuth Client Secret for dev environment',
-      },
-    })
+    // Note: We reference an existing secret, not create a new one
+    // The custom resource will sync it to Cognito automatically
   })
 
   test('Google identity provider has correct OAuth scopes configured', () => {
@@ -222,13 +217,8 @@ describe('FitnessFightStack', () => {
       }),
     })
 
-    // Verify the secret exists in Secrets Manager
-    template.hasResource('AWS::SecretsManager::Secret', {
-      Properties: {
-        Name: 'fitnessfight-club-google-client-secret-dev',
-        Description: 'Google OAuth Client Secret for dev environment',
-      },
-    })
+    // Note: We reference an existing secret, not create a new one
+    // The custom resource will sync it to Cognito automatically
   })
 
   test('Production environment creates Google provider with prod-specific secret', () => {
@@ -239,11 +229,8 @@ describe('FitnessFightStack', () => {
 
     const template = Template.fromStack(stack)
 
-    // Check that production uses prod-specific secret name
-    template.hasResourceProperties('AWS::SecretsManager::Secret', {
-      Name: 'fitnessfight-club-google-client-secret-prod',
-      Description: 'Google OAuth Client Secret for prod environment',
-    })
+    // Note: We reference an existing secret in production too
+    // The custom resource will sync it to Cognito automatically
 
     // Verify Google provider exists in production
     template.hasResourceProperties('AWS::Cognito::UserPoolIdentityProvider', {
@@ -345,7 +332,7 @@ describe('FitnessFightStack', () => {
     expect(hasGoogleProviderOutput).toBe(true)
   })
 
-  test('Google Client Secret has proper removal policy for dev environment', () => {
+  test('Google OAuth secret sync custom resources exist', () => {
     const app = new cdk.App()
     const stack = new FitnessFightStack(app, 'TestStack', {
       environment: 'dev',
@@ -353,24 +340,25 @@ describe('FitnessFightStack', () => {
 
     const template = Template.fromStack(stack)
 
-    // Find the Google Client Secret resource
+    // Verify we have custom resources for Google OAuth secret sync
     const resources = template.toJSON().Resources
-    let secretResource: any = null
 
-    for (const resource of Object.values(resources)) {
-      if (
-        (resource as any).Type === 'AWS::SecretsManager::Secret' &&
-        (resource as any).Properties?.Name === 'fitnessfight-club-google-client-secret-dev'
-      ) {
-        secretResource = resource
-        break
-      }
-    }
+    // Count Custom::AWS resources (should have at least 2 for Google secret sync)
+    const customResourceCount = Object.values(resources).filter((resource: any) => {
+      return resource.Type === 'Custom::AWS'
+    }).length
 
-    expect(secretResource).not.toBeNull()
-    // Dev environment should have Delete policy
-    expect(secretResource.UpdateReplacePolicy).toBe('Delete')
-    expect(secretResource.DeletionPolicy).toBe('Delete')
+    // We should have at least 2 custom resources:
+    // 1. GoogleSecretSync - to get the secret value
+    // 2. UpdateCognitoGoogleProvider - to update Cognito with the secret
+    expect(customResourceCount).toBeGreaterThanOrEqual(2)
+
+    // Check that we have resources with Google-related names
+    const hasGoogleSyncResources = Object.keys(resources).some(
+      (key) => key.includes('GoogleSecretSync') || key.includes('UpdateCognitoGoogleProvider')
+    )
+
+    expect(hasGoogleSyncResources).toBe(true)
   })
 
   test('Google provider is configured with correct provider name', () => {
