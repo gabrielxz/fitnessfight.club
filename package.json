@@ -37,5 +37,9 @@
     "url": "git+https://github.com/yourusername/fitnessfight.club.git"
   },
   "author": "",
-  "license": "UNLICENSED"
+  "license": "UNLICENSED",
+  "dependencies": {
+    "@aws-sdk/client-cloudformation": "^3.876.0",
+    "@aws-sdk/client-secrets-manager": "^3.876.0"
+  }
 }

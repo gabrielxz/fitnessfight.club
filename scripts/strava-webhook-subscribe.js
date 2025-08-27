@@ -88,10 +88,27 @@ function makeStravaRequest(options, data = null) {
       
       res.on('end', () => {
         try {
+          let parsedBody = null
+          
+          // Only try to parse JSON if we got a successful response or if it looks like JSON
+          if (body) {
+            if (res.headers['content-type']?.includes('application/json') || body.trim().startsWith('[') || body.trim().startsWith('{')) {
+              try {
+                parsedBody = JSON.parse(body)
+              } catch (e) {
+                // If JSON parsing fails, return the raw body
+                console.error('Failed to parse response as JSON:', body.substring(0, 200))
+                parsedBody = body
+              }
+            } else {
+              parsedBody = body
+            }
+          }
+          
           const response = {
             statusCode: res.statusCode,
             headers: res.headers,
-            body: body ? JSON.parse(body) : null
+            body: parsedBody
           }
           resolve(response)
         } catch (error) {
@@ -128,7 +145,16 @@ async function getSubscriptions(clientId, clientSecret) {
   const response = await makeStravaRequest(options)
   
   if (response.statusCode !== 200) {
-    throw new Error(`Failed to get subscriptions: ${response.statusCode} - ${JSON.stringify(response.body)}`)
+    const errorMessage = typeof response.body === 'string' 
+      ? `HTML Error Page: ${response.body.substring(0, 200)}...`
+      : JSON.stringify(response.body)
+    throw new Error(`Failed to get subscriptions: ${response.statusCode} - ${errorMessage}`)
+  }
+  
+  // Handle both array response and error cases
+  if (!Array.isArray(response.body)) {
+    console.error('Unexpected response format:', response.body)
+    return []
   }
   
   return response.body || []
