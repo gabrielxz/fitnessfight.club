@@ -21,38 +21,40 @@ function SignInContent() {
   const { refreshUser } = useAuth()
 
   useEffect(() => {
-    console.log('SignInPage loaded. URL:', window.location.href)
-    // Check for OAuth callback - tokens come in URL fragment for implicit flow
-    const hash = window.location.hash
-    const authError = searchParams?.get('error')
-    const authErrorDescription = searchParams?.get('error_description')
+    function handleUrlChange() {
+      console.log('URL changed. New URL:', window.location.href)
+      const hash = window.location.hash
+      const searchParams = new URLSearchParams(window.location.search)
 
-    if (hash && (hash.includes('id_token') || hash.includes('access_token'))) {
-      // OAuth callback successful with tokens in fragment
-      handleOAuthCallback()
-    } else if (authError) {
-      // OAuth error
-      const errorMessage = authErrorDescription || authError || 'Authentication failed'
-      setError(errorMessage)
-      // Clean URL by removing OAuth parameters
-      const newUrl = new URL(window.location.href)
-      newUrl.searchParams.delete('error')
-      newUrl.searchParams.delete('error_description')
-      window.history.replaceState({}, '', newUrl.toString())
-    } else {
-      // Check if user just confirmed their email
-      if (searchParams?.get('confirmed') === 'true') {
-        setSuccessMessage('Email confirmed successfully! You can now sign in.')
-      }
-      // Check if user just reset their password
-      if (searchParams?.get('reset') === 'success') {
-        setSuccessMessage(
-          'Password reset successfully! You can now sign in with your new password.'
-        )
+      if (hash && (hash.includes('id_token') || hash.includes('access_token'))) {
+        console.log('OAuth callback detected in hash')
+        handleOAuthCallback()
+      } else {
+        const authError = searchParams.get('error')
+        if (authError) {
+          const authErrorDescription = searchParams.get('error_description')
+          const errorMessage = authErrorDescription || authError || 'Authentication failed'
+          setError(errorMessage)
+          const newUrl = new URL(window.location.href)
+          newUrl.searchParams.delete('error')
+          newUrl.searchParams.delete('error_description')
+          window.history.replaceState({}, '', newUrl.toString())
+        }
       }
     }
+
+    // Run on initial load
+    handleUrlChange()
+
+    // Listen for hash changes
+    window.addEventListener('hashchange', handleUrlChange, false)
+
+    // Cleanup
+    return () => {
+      window.removeEventListener('hashchange', handleUrlChange, false)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams])
+  }, [])
 
   async function handleOAuthCallback() {
     try {
