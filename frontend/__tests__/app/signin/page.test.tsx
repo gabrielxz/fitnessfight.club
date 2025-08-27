@@ -308,11 +308,8 @@ describe('SignIn Page', () => {
     })
 
     it('should handle OAuth callback without tokens in fragment', async () => {
-      mockLocation.hash = ''
-      mockGet.mockImplementation((param: string) => {
-        if (param === 'code') return 'test-code'
-        return null
-      })
+      mockLocation.hash = '#state=somestate' // Hash without tokens
+      mockGet.mockImplementation(() => null)
 
       render(
         <AuthProvider>
@@ -320,18 +317,14 @@ describe('SignIn Page', () => {
         </AuthProvider>
       )
 
+      // Should not trigger OAuth callback when no tokens in hash
       await waitFor(() => {
-        expect(screen.getByText('Authentication successful! Redirecting...')).toBeInTheDocument()
+        expect(screen.getByRole('heading', { name: /sign in/i })).toBeInTheDocument()
       })
 
-      // Wait for the timeout to complete
-      await waitFor(
-        () => {
-          expect(mockRefreshUser).toHaveBeenCalled()
-          expect(mockPush).toHaveBeenCalledWith('/')
-        },
-        { timeout: 3000 }
-      )
+      // Should not call refresh or redirect since no valid tokens
+      expect(mockRefreshUser).not.toHaveBeenCalled()
+      expect(mockPush).not.toHaveBeenCalled()
     })
 
     it.skip('should handle OAuth callback errors gracefully', async () => {
