@@ -163,11 +163,8 @@ describe('FitnessFightStack', () => {
       SupportedIdentityProviders: Match.arrayWith(['COGNITO', 'Google']),
     })
 
-    // Check that Google Client Secret is created in Secrets Manager
-    template.hasResourceProperties('AWS::SecretsManager::Secret', {
-      Name: 'fitnessfight-club-google-client-secret-dev',
-      Description: 'Google OAuth Client Secret for dev environment',
-    })
+    // Note: We reference an existing secret, not create a new one
+    // So we don't check for AWS::SecretsManager::Secret creation
   })
 
   test('Google identity provider has correct OAuth scopes configured', () => {
@@ -220,13 +217,8 @@ describe('FitnessFightStack', () => {
       }),
     })
 
-    // Verify the secret exists in Secrets Manager
-    template.hasResource('AWS::SecretsManager::Secret', {
-      Properties: {
-        Name: 'fitnessfight-club-google-client-secret-dev',
-        Description: 'Google OAuth Client Secret for dev environment',
-      },
-    })
+    // Note: We no longer create a new secret, we reference an existing one
+    // So we don't check for AWS::SecretsManager::Secret creation
   })
 
   test('Production environment creates Google provider with prod-specific secret', () => {
@@ -237,11 +229,8 @@ describe('FitnessFightStack', () => {
 
     const template = Template.fromStack(stack)
 
-    // Check that production uses prod-specific secret name
-    template.hasResourceProperties('AWS::SecretsManager::Secret', {
-      Name: 'fitnessfight-club-google-client-secret-prod',
-      Description: 'Google OAuth Client Secret for prod environment',
-    })
+    // Note: We reference an existing secret in production too
+    // So we don't check for AWS::SecretsManager::Secret creation
 
     // Verify Google provider exists in production
     template.hasResourceProperties('AWS::Cognito::UserPoolIdentityProvider', {
@@ -343,7 +332,7 @@ describe('FitnessFightStack', () => {
     expect(hasGoogleProviderOutput).toBe(true)
   })
 
-  test('Google Client Secret has proper removal policy for dev environment', () => {
+  test('Google provider references existing secret', () => {
     const app = new cdk.App()
     const stack = new FitnessFightStack(app, 'TestStack', {
       environment: 'dev',
@@ -351,24 +340,15 @@ describe('FitnessFightStack', () => {
 
     const template = Template.fromStack(stack)
 
-    // Find the Google Client Secret resource
-    const resources = template.toJSON().Resources
-    let secretResource: any = null
-
-    for (const resource of Object.values(resources)) {
-      if (
-        (resource as any).Type === 'AWS::SecretsManager::Secret' &&
-        (resource as any).Properties?.Name === 'fitnessfight-club-google-client-secret-dev'
-      ) {
-        secretResource = resource
-        break
-      }
-    }
-
-    expect(secretResource).not.toBeNull()
-    // Dev environment should have Delete policy
-    expect(secretResource.UpdateReplacePolicy).toBe('Delete')
-    expect(secretResource.DeletionPolicy).toBe('Delete')
+    // Verify Google provider exists and is configured
+    // We no longer create secrets, we reference existing ones
+    template.hasResourceProperties('AWS::Cognito::UserPoolIdentityProvider', {
+      ProviderType: 'Google',
+      ProviderDetails: {
+        client_id: '943111494407-autmunn4il0ea818amad2l5b8d1ud9l5.apps.googleusercontent.com',
+        client_secret: Match.anyValue(), // Secret reference
+      },
+    })
   })
 
   test('Google provider is configured with correct provider name', () => {

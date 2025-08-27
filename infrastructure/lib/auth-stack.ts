@@ -113,11 +113,12 @@ export class AuthStack extends Construct {
     })
 
     // Google OAuth Provider Configuration
-    const googleClientSecretSecret = new secretsmanager.Secret(this, 'GoogleClientSecret', {
-      secretName: `fitnessfight-club-google-client-secret-${environment}`,
-      description: `Google OAuth Client Secret for ${environment} environment`,
-      secretStringValue: cdk.SecretValue.unsafePlainText('PLACEHOLDER_GOOGLE_CLIENT_SECRET'),
-    })
+    // Reference the existing secret instead of creating a new one
+    const googleClientSecretSecret = secretsmanager.Secret.fromSecretNameV2(
+      this,
+      'GoogleClientSecret',
+      `fitnessfight-club-google-client-secret-${environment}`
+    )
 
     const googleProvider = new cognito.UserPoolIdentityProviderGoogle(this, 'GoogleProvider', {
       userPool: this.userPool,
